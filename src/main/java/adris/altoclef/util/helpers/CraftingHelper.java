@@ -3,10 +3,9 @@ package adris.altoclef.util.helpers;
 import adris.altoclef.AltoClef;
 import adris.altoclef.util.CraftingRecipe;
 import adris.altoclef.util.ItemTarget;
-import net.minecraft.item.Item;
-import net.minecraft.item.ItemStack;
-
 import java.util.*;
+import net.minecraft.world.item.Item;
+import net.minecraft.world.item.ItemStack;
 
 public class CraftingHelper {
 
@@ -24,7 +23,7 @@ public class CraftingHelper {
         }
 
         for (CraftingRecipe recipe : mod.getCraftingRecipeTracker().getRecipeForItem(item)) {
-            if (canCraftItemNow(mod, new ArrayList<>(inventoryItems), recipe, new HashSet<>())) {
+            if (canCraftItemNow(mod, copyStacks(inventoryItems), recipe, new HashSet<>())) {
                 return true;
             }
         }
@@ -68,7 +67,7 @@ public class CraftingHelper {
                 if (!mod.getCraftingRecipeTracker().hasRecipeForItem(item)) continue;
 
                 for (CraftingRecipe newRecipe : mod.getCraftingRecipeTracker().getRecipeForItem(item)) {
-                    List<ItemStack> inventoryStacksCopy = new ArrayList<>(inventoryStacks);
+                    List<ItemStack> inventoryStacksCopy = copyStacks(inventoryStacks);
                     if (canCraftItemNow(mod, inventoryStacksCopy, newRecipe, new HashSet<>(alreadyChecked))) {
 
                         // this is the inventory we are now left with
@@ -89,6 +88,14 @@ public class CraftingHelper {
         }
 
         return true;
+    }
+
+    private static List<ItemStack> copyStacks(List<ItemStack> stacks) {
+        List<ItemStack> result = new ArrayList<>(stacks.size());
+        for (ItemStack stack : stacks) {
+            result.add(new ItemStack(stack.getItem(), stack.getCount()));
+        }
+        return result;
     }
 
 }

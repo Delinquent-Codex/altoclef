@@ -1,6 +1,19 @@
 # Change Log
 *(this list may not contain all the changes, but I tried to list most of them)*
 
+### Minecraft 26.2 Fabric port
+- Ported the active project to a single Minecraft 26.2 Fabric target.
+- Removed the active ReplayMod preprocessor multi-version build and obsolete version mapping files.
+- Updated the build to Gradle 9.6.0, Fabric Loom 1.17.12, Java 25, Fabric Loader 0.19.3, Fabric API 0.153.0+26.2, and MixinExtras 0.5.4.
+- Migrated AltoClef source to current client, inventory, item component, recipe display, registry, rendering, screen, entity, chunk, and data component APIs.
+- Vendored and ported Baritone source from cabaletta/baritone commit 775f4ca97f64bba5780f0f012485dce20b36fb44 for the 26.2 build.
+- Bundled Jackson, MixinExtras, and nether-pathfinder as nested jars and added jar-content verification to the Gradle build.
+- Updated Fabric metadata and GitHub Actions for the 26.2 client-only build.
+- Fixed unbounded native memory growth in Baritone visualization by giving every render batch explicit allocator, mesh, and GPU-buffer ownership.
+- Added world-safe renderer guards, path/goal/selection cleanup, cache-worker shutdown, and stale block-scan cancellation across unloads.
+- Added `renderBaritoneVisuals` as a master visualization switch and `renderDiagnostics` for bounded native-render ownership snapshots.
+- Added an opt-in repeated-world regression harness and validated Fabric-only, Sodium, Iris, and Fabulously Optimized runtime configurations.
+
 ### Misc
 - Fixed set gamma not working
 - Blacklist wool in ancient cities

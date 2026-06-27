@@ -8,17 +8,13 @@ import adris.altoclef.tasksystem.Task;
 import adris.altoclef.util.ItemTarget;
 import adris.altoclef.util.helpers.StorageHelper;
 import adris.altoclef.util.helpers.WorldHelper;
-import net.minecraft.block.Blocks;
-import net.minecraft.entity.Entity;
-import net.minecraft.entity.passive.IronGolemEntity;
-import net.minecraft.item.Items;
-import net.minecraft.util.math.BlockPos;
-import net.minecraft.util.math.Vec3d;
-//#if MC <= 11605
-//$$ import net.minecraft.util.math.Direction;
-//#endif
-
 import java.util.Optional;
+import net.minecraft.core.BlockPos;
+import net.minecraft.world.entity.Entity;
+import net.minecraft.world.entity.animal.golem.IronGolem;
+import net.minecraft.world.item.Items;
+import net.minecraft.world.level.block.Blocks;
+import net.minecraft.world.phys.Vec3;
 
 public class ConstructIronGolemTask extends Task {
     private BlockPos position;
@@ -57,7 +53,7 @@ public class ConstructIronGolemTask extends Task {
                 }
             }
             if (position == null) {
-                position = mod.getPlayer().getBlockPos();
+                position = mod.getPlayer().blockPosition();
             }
         }
         if (!WorldHelper.isBlock(position, Blocks.IRON_BLOCK)) {
@@ -69,29 +65,29 @@ public class ConstructIronGolemTask extends Task {
             return new PlaceBlockTask(position, Blocks.IRON_BLOCK);
         }
 //        mod.getPlayer().getServer().getPlayerManager().getPlayer("camelCasedSnivy").getAdvancementTracker()
-        if (!WorldHelper.isBlock(position.up(), Blocks.IRON_BLOCK)) {
-            if (!WorldHelper.isBlock(position.up(), Blocks.AIR)) {
+        if (!WorldHelper.isBlock(position.above(), Blocks.IRON_BLOCK)) {
+            if (!WorldHelper.isBlock(position.above(), Blocks.AIR)) {
                 setDebugState("Destroying block in way of center iron block");
-                return new DestroyBlockTask(position.up());
+                return new DestroyBlockTask(position.above());
             }
             setDebugState("Placing the center iron block");
-            return new PlaceBlockTask(position.up(), Blocks.IRON_BLOCK);
+            return new PlaceBlockTask(position.above(), Blocks.IRON_BLOCK);
         }
-        if (!WorldHelper.isBlock(position.up().east(), Blocks.IRON_BLOCK)) {
-            if (!WorldHelper.isBlock(position.up().east(), Blocks.AIR)) {
+        if (!WorldHelper.isBlock(position.above().east(), Blocks.IRON_BLOCK)) {
+            if (!WorldHelper.isBlock(position.above().east(), Blocks.AIR)) {
                 setDebugState("Destroying block in way of east iron block");
-                return new DestroyBlockTask(position.up().east());
+                return new DestroyBlockTask(position.above().east());
             }
             setDebugState("Placing the east iron block");
-            return new PlaceBlockTask(position.up().east(), Blocks.IRON_BLOCK);
+            return new PlaceBlockTask(position.above().east(), Blocks.IRON_BLOCK);
         }
-        if (!WorldHelper.isBlock(position.up().west(), Blocks.IRON_BLOCK)) {
-            if (!WorldHelper.isBlock(position.up().west(), Blocks.AIR)) {
+        if (!WorldHelper.isBlock(position.above().west(), Blocks.IRON_BLOCK)) {
+            if (!WorldHelper.isBlock(position.above().west(), Blocks.AIR)) {
                 setDebugState("Destroying block in way of west iron block");
-                return new DestroyBlockTask(position.up().west());
+                return new DestroyBlockTask(position.above().west());
             }
             setDebugState("Placing the west iron block");
-            return new PlaceBlockTask(position.up().west(), Blocks.IRON_BLOCK);
+            return new PlaceBlockTask(position.above().west(), Blocks.IRON_BLOCK);
         }
         if (!WorldHelper.isBlock(position.east(), Blocks.AIR)) {
             setDebugState("Clearing area on east side...");
@@ -101,13 +97,13 @@ public class ConstructIronGolemTask extends Task {
             setDebugState("Clearing area on west side...");
             return new DestroyBlockTask(position.west());
         }
-        if (!WorldHelper.isBlock(position.up(2), Blocks.AIR)) {
+        if (!WorldHelper.isBlock(position.above(2), Blocks.AIR)) {
             setDebugState("Destroying block in way of pumpkin");
-            return new DestroyBlockTask(position.up(2));
+            return new DestroyBlockTask(position.above(2));
         }
         canBeFinished = true;
         setDebugState("Placing the pumpkin (I think)");
-        return new PlaceBlockTask(position.up(2), Blocks.CARVED_PUMPKIN);
+        return new PlaceBlockTask(position.above(2), Blocks.CARVED_PUMPKIN);
     }
 
     @Override
@@ -124,8 +120,8 @@ public class ConstructIronGolemTask extends Task {
     @Override
     public boolean isFinished() {
         if (position == null) return false;
-        Optional<Entity> closestIronGolem = AltoClef.getInstance().getEntityTracker().getClosestEntity(new Vec3d(position.getX(), position.getY(), position.getZ()), IronGolemEntity.class);
-        return closestIronGolem.isPresent() && closestIronGolem.get().getBlockPos().isWithinDistance(position, 2) && canBeFinished;
+        Optional<Entity> closestIronGolem = AltoClef.getInstance().getEntityTracker().getClosestEntity(new Vec3(position.getX(), position.getY(), position.getZ()), IronGolem.class);
+        return closestIronGolem.isPresent() && closestIronGolem.get().blockPosition().closerThan(position, 2) && canBeFinished;
     }
 
     @Override
@@ -140,17 +136,17 @@ public class ConstructIronGolemTask extends Task {
         int needed = 0;
         if (mod.getWorld().getBlockState(position).getBlock() != Blocks.IRON_BLOCK)
             needed++;
-        if (mod.getWorld().getBlockState(position.up().west()).getBlock() != Blocks.IRON_BLOCK)
+        if (mod.getWorld().getBlockState(position.above().west()).getBlock() != Blocks.IRON_BLOCK)
             needed++;
-        if (mod.getWorld().getBlockState(position.up().east()).getBlock() != Blocks.IRON_BLOCK)
+        if (mod.getWorld().getBlockState(position.above().east()).getBlock() != Blocks.IRON_BLOCK)
             needed++;
-        if (mod.getWorld().getBlockState(position.up()).getBlock() != Blocks.IRON_BLOCK)
+        if (mod.getWorld().getBlockState(position.above()).getBlock() != Blocks.IRON_BLOCK)
             needed++;
         return needed;
     }
 
     private ItemTarget[] golemMaterials(AltoClef mod) {
-        if (position == null || mod.getWorld().getBlockState(position.up(2)).getBlock() != Blocks.CARVED_PUMPKIN)
+        if (position == null || mod.getWorld().getBlockState(position.above(2)).getBlock() != Blocks.CARVED_PUMPKIN)
             return new ItemTarget[]{
                     new ItemTarget(Items.IRON_BLOCK, ironBlocksNeeded(mod)),
                     new ItemTarget(Items.CARVED_PUMPKIN, 1)

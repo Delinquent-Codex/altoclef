@@ -1,0 +1,1 @@
+Baritone source vendored from https://github.com/cabaletta/baritone commit 775f4ca97f64bba5780f0f012485dce20b36fb44 (branch 1.21.11).

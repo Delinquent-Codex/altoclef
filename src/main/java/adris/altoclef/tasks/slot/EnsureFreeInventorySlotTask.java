@@ -5,10 +5,9 @@ import adris.altoclef.tasksystem.Task;
 import adris.altoclef.util.helpers.LookHelper;
 import adris.altoclef.util.helpers.StorageHelper;
 import adris.altoclef.util.slots.Slot;
-import net.minecraft.item.ItemStack;
-import net.minecraft.screen.slot.SlotActionType;
-
 import java.util.Optional;
+import net.minecraft.world.inventory.ContainerInput;
+import net.minecraft.world.item.ItemStack;
 
 public class EnsureFreeInventorySlotTask extends Task {
     @Override
@@ -24,13 +23,13 @@ public class EnsureFreeInventorySlotTask extends Task {
         Optional<Slot> garbage = StorageHelper.getGarbageSlot(mod);
         if (cursorStack.isEmpty()) {
             if (garbage.isPresent()) {
-                mod.getSlotHandler().clickSlot(garbage.get(), 0, SlotActionType.PICKUP);
+                mod.getSlotHandler().clickSlot(garbage.get(), 0, ContainerInput.PICKUP);
                 return null;
             }
         }
         if (!cursorStack.isEmpty()) {
             LookHelper.randomOrientation();
-            mod.getSlotHandler().clickSlot(Slot.UNDEFINED, 0, SlotActionType.PICKUP);
+            mod.getSlotHandler().clickSlot(Slot.UNDEFINED, 0, ContainerInput.PICKUP);
             return null;
         }
         setDebugState("All items are protected.");

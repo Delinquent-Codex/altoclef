@@ -2,55 +2,58 @@ package adris.altoclef.mixins;
 
 import adris.altoclef.eventbus.EventBus;
 import adris.altoclef.eventbus.events.SlotClickChangedEvent;
-import com.google.common.collect.ImmutableList;
-import net.minecraft.entity.player.PlayerEntity;
-import net.minecraft.entity.player.PlayerInventory;
-import net.minecraft.item.ItemStack;
-import net.minecraft.screen.ScreenHandler;
-import net.minecraft.screen.slot.Slot;
-import net.minecraft.screen.slot.SlotActionType;
-import net.minecraft.util.collection.DefaultedList;
 import org.spongepowered.asm.mixin.Mixin;
-import org.spongepowered.asm.mixin.Shadow;
+import org.spongepowered.asm.mixin.Unique;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
-import org.spongepowered.asm.mixin.injection.Redirect;
-import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
+import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.List;
+import net.minecraft.world.entity.player.Player;
+import net.minecraft.world.inventory.AbstractContainerMenu;
+import net.minecraft.world.inventory.ContainerInput;
+import net.minecraft.world.inventory.Slot;
+import net.minecraft.world.item.ItemStack;
 
-@Mixin(ScreenHandler.class)
+@Mixin(AbstractContainerMenu.class)
 public abstract class SlotClickMixin {
 
-    //#if MC >= 11701
-    @Redirect(
-            method = "internalOnSlotClick",
-            at = @At(value = "INVOKE", target = "Lnet/minecraft/screen/ScreenHandler;internalOnSlotClick(IILnet/minecraft/screen/slot/SlotActionType;Lnet/minecraft/entity/player/PlayerEntity;)V")
+    @Unique
+    private List<ItemStack> altoclef$beforeStacks;
+
+    @Inject(
+            method = "clicked",
+            at = @At("HEAD")
     )
-    private void slotClick(ScreenHandler self, int slotIndex, int button, SlotActionType actionType, PlayerEntity player) {
-        // TODO: "self" is misleading, reread Mixin docs to understand the implications here.
-
-        // This calculation is already done, BUT we also want a "before&after" type beat.
-
+    private void beforeSlotClick(int slotIndex, int button, ContainerInput actionType, Player player, CallbackInfo ci) {
+        AbstractContainerMenu self = (AbstractContainerMenu) (Object) this;
         List<Slot> afterSlots = self.slots;
-        List<ItemStack> beforeStacks = new ArrayList<>(afterSlots.size());
+        altoclef$beforeStacks = new ArrayList<>(afterSlots.size());
         for (Slot slot : afterSlots) {
-            beforeStacks.add(slot.getStack().copy());
+            altoclef$beforeStacks.add(slot.getItem().copy());
         }
-        // Perform slot changes potentially
-        self.onSlotClick(slotIndex, button, actionType, player);
-        // Check for changes and alert
-        for (int i = 0; i < beforeStacks.size(); ++i) {
-            ItemStack before = beforeStacks.get(i);
-            ItemStack after = afterSlots.get(i).getStack();
-            if (!ItemStack.areEqual(before, after)) {
+    }
+
+    @Inject(
+            method = "clicked",
+            at = @At("RETURN")
+    )
+    private void afterSlotClick(int slotIndex, int button, ContainerInput actionType, Player player, CallbackInfo ci) {
+        AbstractContainerMenu self = (AbstractContainerMenu) (Object) this;
+        if (altoclef$beforeStacks == null) {
+            return;
+        }
+        List<Slot> afterSlots = self.slots;
+        for (int i = 0; i < altoclef$beforeStacks.size(); ++i) {
+            ItemStack before = altoclef$beforeStacks.get(i);
+            ItemStack after = afterSlots.get(i).getItem();
+            if (!ItemStack.matches(before, after)) {
                 adris.altoclef.util.slots.Slot slot = adris.altoclef.util.slots.Slot.getFromCurrentScreen(i);
                 EventBus.publish(new SlotClickChangedEvent(slot, before, after));
             }
         }
+        altoclef$beforeStacks = null;
     }
-    //#endif
 
 }

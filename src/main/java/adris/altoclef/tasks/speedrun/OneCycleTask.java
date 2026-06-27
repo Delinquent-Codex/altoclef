@@ -8,15 +8,14 @@ import adris.altoclef.util.helpers.LookHelper;
 import adris.altoclef.util.helpers.WorldHelper;
 import adris.altoclef.util.time.TimerGame;
 import baritone.api.utils.input.Input;
-import net.minecraft.block.Blocks;
-import net.minecraft.entity.boss.dragon.EnderDragonEntity;
-import net.minecraft.entity.boss.dragon.EnderDragonPart;
-import net.minecraft.item.Items;
-import net.minecraft.util.math.BlockPos;
-import net.minecraft.util.math.Direction;
-import net.minecraft.util.math.Vec3d;
-
 import java.util.List;
+import net.minecraft.core.BlockPos;
+import net.minecraft.core.Direction;
+import net.minecraft.world.entity.boss.enderdragon.EnderDragonPart;
+import net.minecraft.world.entity.boss.enderdragon.EnderDragon;
+import net.minecraft.world.item.Items;
+import net.minecraft.world.level.block.Blocks;
+import net.minecraft.world.phys.Vec3;
 
 public class OneCycleTask extends Task {
 
@@ -37,20 +36,20 @@ public class OneCycleTask extends Task {
             mod.getInputControls().release(Input.SNEAK);
         }
 
-        List<EnderDragonEntity> dragons = mod.getEntityTracker().getTrackedEntities(EnderDragonEntity.class);
+        List<EnderDragon> dragons = mod.getEntityTracker().getTrackedEntities(EnderDragon.class);
         if (dragons.size() != 1) {
               mod.log("No dragon? :(");
         }
 
-        for (EnderDragonEntity dragon : dragons) {
+        for (EnderDragon dragon : dragons) {
 
-            BlockPos endPortalTop = KillEnderDragonWithBedsTask.locateExitPortalTop(mod).up();
+            BlockPos endPortalTop = KillEnderDragonWithBedsTask.locateExitPortalTop(mod).above();
             BlockPos obsidian = null;
             Direction dir = null;
 
             for (Direction direction : new Direction[]{Direction.EAST, Direction.WEST, Direction.NORTH, Direction.SOUTH}) {
-                if (mod.getWorld().getBlockState(endPortalTop.offset(direction)).getBlock().equals(Blocks.OBSIDIAN)) {
-                    obsidian = endPortalTop.offset(direction);
+                if (mod.getWorld().getBlockState(endPortalTop.relative(direction)).getBlock().equals(Blocks.OBSIDIAN)) {
+                    obsidian = endPortalTop.relative(direction);
                     dir = direction.getOpposite();
                     break;
                 }
@@ -62,9 +61,9 @@ public class OneCycleTask extends Task {
             }
 
             Direction offsetDir = dir.getAxis() == Direction.Axis.X ? Direction.SOUTH : Direction.WEST;
-            BlockPos targetBlock = endPortalTop.down(3).offset(offsetDir, 3).offset(dir);
+            BlockPos targetBlock = endPortalTop.below(3).relative(offsetDir, 3).relative(dir);
 
-            double d = distanceIgnoreY(WorldHelper.toVec3d(targetBlock), mod.getPlayer().getPos());
+            double d = distanceIgnoreY(WorldHelper.toVec3d(targetBlock), mod.getPlayer().position());
             if (d > 0.7) {
                 mod.log(d + "");
                 return new GetToBlockTask(targetBlock);
@@ -74,7 +73,7 @@ public class OneCycleTask extends Task {
 
             BlockPos bedHead = WorldHelper.getBedHead(endPortalTop);
 
-            BlockPos bedTargetPosition = endPortalTop.up();
+            BlockPos bedTargetPosition = endPortalTop.above();
             mod.getSlotHandler().forceEquipItem(ItemHelper.BED);
 
             if (bedHead == null) {
@@ -99,15 +98,15 @@ public class OneCycleTask extends Task {
             }
 
 
-            Vec3d dragonHeadPos = dragon.head.getBoundingBox().getCenter(); // dragon.head.getPos();
-            Vec3d bedHeadPos = WorldHelper.toVec3d(bedHead);
+            Vec3 dragonHeadPos = dragon.head.getBoundingBox().getCenter(); // dragon.head.getPos();
+            Vec3 bedHeadPos = WorldHelper.toVec3d(bedHead);
 
             double dist = dragonHeadPos.distanceTo(bedHeadPos);
             double distXZ = distanceIgnoreY(dragonHeadPos, bedHeadPos);
 
-            EnderDragonPart body = dragon.getBodyParts()[2];
+            EnderDragonPart body = dragon.getSubEntities()[2];
 
-            double destroyDistance = Math.abs(body.getBoundingBox().getMin(Direction.Axis.Y) - bedHeadPos.getY());
+            double destroyDistance = Math.abs(body.getBoundingBox().min(Direction.Axis.Y) - bedHeadPos.y());
             boolean tooClose = destroyDistance < 1.1;
             boolean skip = destroyDistance > 3 && dist > 4.5 && distXZ > 2.5;
 
@@ -125,7 +124,7 @@ public class OneCycleTask extends Task {
 
             prevDist = distXZ;
 
-            double yDist = dragonHeadPos.getY() - bedHead.getY();
+            double yDist = dragonHeadPos.y() - bedHead.getY();
             // Debug.logMessage(dist+"");
 
            /* if ((dist < 0.9 && yDist < 3) || yDist<2) {
@@ -143,7 +142,7 @@ public class OneCycleTask extends Task {
         return null;
     }
 
-    public double distanceIgnoreY(Vec3d vec, Vec3d vec1) {
+    public double distanceIgnoreY(Vec3 vec, Vec3 vec1) {
         double d = vec.x - vec1.x;
         double f = vec.z - vec1.z;
         return Math.sqrt(d * d + f * f);
@@ -156,7 +155,7 @@ public class OneCycleTask extends Task {
 
     @Override
     public boolean isFinished() {
-        return AltoClef.getInstance().getEntityTracker().getTrackedEntities(EnderDragonEntity.class).isEmpty();
+        return AltoClef.getInstance().getEntityTracker().getTrackedEntities(EnderDragon.class).isEmpty();
     }
 
     @Override

@@ -2,29 +2,34 @@ package adris.altoclef.mixins;
 
 import adris.altoclef.eventbus.EventBus;
 import adris.altoclef.eventbus.events.BlockPlaceEvent;
-import net.minecraft.block.BlockState;
-import net.minecraft.client.MinecraftClient;
-import net.minecraft.util.math.BlockPos;
-import net.minecraft.world.World;
+import net.minecraft.core.BlockPos;
+import net.minecraft.world.level.Level;
+import net.minecraft.world.level.block.state.BlockState;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Unique;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
-import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
+import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 
-@Mixin(World.class)
+@Mixin(Level.class)
 public class WorldBlockModifiedMixin {
 
     @Unique
-    private static boolean hasBlock(BlockState state, BlockPos pos) {
-        return !state.isAir() && state.isSolidBlock(MinecraftClient.getInstance().world, pos);
+    private boolean hasBlock(BlockState state, BlockPos pos) {
+        Level level = (Level) (Object) this;
+        return !state.isAir() && state.isRedstoneConductor(level, pos);
     }
 
     @Inject(
-            method = "onBlockChanged",
+            method = "setBlock(Lnet/minecraft/core/BlockPos;Lnet/minecraft/world/level/block/state/BlockState;II)Z",
             at = @At("HEAD")
     )
-    public void onBlockWasChanged(BlockPos pos, BlockState oldBlock, BlockState newBlock, CallbackInfo ci) {
+    public void onBlockWasChanged(BlockPos pos, BlockState newBlock, int flags, int recursionDepth, CallbackInfoReturnable<Boolean> cir) {
+        Level level = (Level) (Object) this;
+        if (!level.isInValidBounds(pos)) {
+            return;
+        }
+        BlockState oldBlock = level.getBlockState(pos);
         if (!hasBlock(oldBlock, pos) && hasBlock(newBlock, pos)) {
             BlockPlaceEvent evt = new BlockPlaceEvent(pos, newBlock);
             EventBus.publish(evt);

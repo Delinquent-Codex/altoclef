@@ -2,7 +2,7 @@
   "required": true,
   "minVersion": "0.8",
   "package": "adris.altoclef.mixins",
-  "compatibilityLevel": "JAVA_8",
+  "compatibilityLevel": "JAVA_25",
   "mixins": [
     "AbstractFurnaceScreenHandlerAccessor",
     "AxeItemAccessor",
@@ -14,7 +14,6 @@
     "DeathScreenAccessor",
     "EntityAccessor",
     "GameOverlayMixin",
-    "MiningToolItemAccessor",
     "PersistentProjectileEntityAccessor",
     "PortalManagerAccessor",
     "SlotClickMixin",
@@ -31,6 +30,7 @@
     "EntryMixin",
     "LoadChunkMixin",
     "MixinLocalPlayer",
+    "OptionsMixin",
     "PlayerCollidesWithEntityMixin",
     "SimpleOptionMixin"
   ],

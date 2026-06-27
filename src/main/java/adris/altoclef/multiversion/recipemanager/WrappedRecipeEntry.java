@@ -1,21 +1,16 @@
 package adris.altoclef.multiversion.recipemanager;
 
-import net.minecraft.recipe.Recipe;
-//#if MC>12001
-import net.minecraft.recipe.RecipeEntry;
-//#endif
-import net.minecraft.util.Identifier;
+import net.minecraft.world.item.crafting.display.RecipeDisplay;
+import net.minecraft.world.item.crafting.display.RecipeDisplayEntry;
+import net.minecraft.world.item.crafting.display.RecipeDisplayId;
 
-public record WrappedRecipeEntry(Identifier id, Recipe<?> value) {
+public record WrappedRecipeEntry(RecipeDisplayEntry entry) {
 
-    //#if MC>12001
-    public RecipeEntry<?> asRecipe() {
-        return new RecipeEntry<Recipe<?>>(id, value);
+    public RecipeDisplayId id() {
+        return entry.id();
     }
-    //#else
-    //$$ public Recipe<?> asRecipe(){
-    //$$     return value;
-    //$$ }
-    //#endif
 
+    public RecipeDisplay value() {
+        return entry.display();
+    }
 }

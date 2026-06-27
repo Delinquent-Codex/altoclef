@@ -6,11 +6,8 @@ import adris.altoclef.eventbus.EventBus;
 import adris.altoclef.eventbus.events.ChatMessageEvent;
 import adris.altoclef.eventbus.events.TaskFinishedEvent;
 import adris.altoclef.ui.MessagePriority;
-import net.minecraft.client.MinecraftClient;
-import net.minecraft.network.message.MessageType;
-import net.minecraft.world.World;
-
 import java.util.Objects;
+import net.minecraft.network.chat.ChatType;
 
 /**
  * The butler system lets authorized players send commands to the bot to execute.
@@ -52,7 +49,7 @@ public class Butler {
             boolean debug = ButlerConfig.getInstance().whisperFormatDebug;
             String message = evt.messageContent();
             String sender = evt.senderName();
-            MessageType messageType = evt.messageType();
+            ChatType messageType = evt.messageType();
             String receiver = mod.getPlayer().getName().getString();
             if (sender != null && !Objects.equals(sender, receiver) && shouldAccept(messageType)) {
                 String wholeMessage = sender + " " + receiver + " " + message;
@@ -64,15 +61,10 @@ public class Butler {
         });
     }
 
-    private static boolean shouldAccept(MessageType messageType) {
-        //#if MC >= 11904
+    private static boolean shouldAccept(ChatType messageType) {
         return messageType.chat().style().isItalic()
                 && messageType.chat().style().getColor() != null
-                && Objects.equals(messageType.chat().style().getColor().getName(), "gray");
-        //#else
-        //$$ //it doesnt look like previous versions did any type of checking
-        //$$ return true;
-        //#endif
+                && Objects.equals(messageType.chat().style().getColor().serialize(), "gray");
     }
 
     private void receiveMessage(String msg, String receiver) {

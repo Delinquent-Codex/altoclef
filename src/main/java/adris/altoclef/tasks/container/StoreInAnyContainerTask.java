@@ -11,16 +11,15 @@ import adris.altoclef.util.ItemTarget;
 import adris.altoclef.util.helpers.ItemHelper;
 import adris.altoclef.util.helpers.WorldHelper;
 import adris.altoclef.util.progresscheck.MovementProgressChecker;
-import net.minecraft.block.Block;
-import net.minecraft.block.Blocks;
-import net.minecraft.item.Items;
-import net.minecraft.util.math.BlockPos;
-
 import java.util.Arrays;
 import java.util.HashSet;
 import java.util.Optional;
 import java.util.function.Predicate;
 import java.util.stream.Stream;
+import net.minecraft.core.BlockPos;
+import net.minecraft.world.item.Items;
+import net.minecraft.world.level.block.Block;
+import net.minecraft.world.level.block.Blocks;
 
 /**
  * Dumps items in any container, placing a chest if we can't find any.
@@ -69,7 +68,7 @@ public class StoreInAnyContainerTask extends Task {
 
             // If it's a chest and the block above can't be broken, we can't open this one.
             boolean isChest = WorldHelper.isChest(containerPos);
-            if (isChest && WorldHelper.isSolidBlock(containerPos.up()) && !WorldHelper.canBreak(containerPos.up()))
+            if (isChest && WorldHelper.isSolidBlock(containerPos.above()) && !WorldHelper.canBreak(containerPos.above()))
                 return false;
 
             //if (!_acceptableContainer.test(containerPos))
@@ -88,7 +87,7 @@ public class StoreInAnyContainerTask extends Task {
                 int range = 6;
                 for (int dx = -range; dx <= range; ++dx) {
                     for (int dz = -range; dz <= range; ++dz) {
-                        BlockPos offset = containerPos.add(dx,0,dz);
+                        BlockPos offset = containerPos.offset(dx,0,dz);
                         if (mod.getWorld().getBlockState(offset).getBlock() == Blocks.SPAWNER) {
                             _dungeonChests.add(containerPos);
                             return false;
@@ -131,7 +130,7 @@ public class StoreInAnyContainerTask extends Task {
                 return new PlaceBlockNearbyTask(canPlace -> {
                     // For chests, above must be air OR breakable.
                     if (WorldHelper.isChest(couldPlace)) {
-                        return WorldHelper.isAir(canPlace.up()) || WorldHelper.canBreak(canPlace.up());
+                        return WorldHelper.isAir(canPlace.above()) || WorldHelper.canBreak(canPlace.above());
                     }
                     return true;
                 }, couldPlace);

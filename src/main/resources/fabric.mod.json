@@ -11,18 +11,33 @@
     "MiranCZ"
   ],
   "contact": {
-    "homepage": "https://github.com/MiranCZ/altoclef",
-    "sources": "https://github.com/MiranCZ/altoclef"
+    "homepage": "https://github.com/Delinquent-Codex/altoclef",
+    "sources": "https://github.com/Delinquent-Codex/altoclef",
+    "issues": "https://github.com/Delinquent-Codex/altoclef/issues"
   },
   "license": "MIT",
   "icon": "assets/altoclef/icon.png",
-  "environment": "*",
+  "environment": "client",
   "entrypoints": {
-    "main": [
+    "client": [
       "adris.altoclef.AltoClef"
     ]
   },
   "mixins": [
-    "altoclef.mixins.json"
-  ]
+    "altoclef.mixins.json",
+    "mixins.baritone.json"
+  ],
+  "depends": {
+    "fabricloader": ">=${loader_version}",
+    "fabric-api": ">=${fabric_api_version}",
+    "minecraft": "${minecraft_version}",
+    "java": ">=${java_version}"
+  },
+  "custom": {
+    "modmenu": {
+      "links": {
+        "modmenu.sources": "https://github.com/Delinquent-Codex/altoclef"
+      }
+    }
+  }
 }

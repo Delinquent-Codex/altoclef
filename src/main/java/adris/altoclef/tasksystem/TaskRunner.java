@@ -70,6 +70,8 @@ public class TaskRunner {
             chain.stop();
         }
         active = false;
+        cachedCurrentTaskChain = null;
+        statusReport = " (no chain running) ";
     }
 
     public boolean isActive() {

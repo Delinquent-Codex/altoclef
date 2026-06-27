@@ -4,10 +4,9 @@ import adris.altoclef.AltoClef;
 import adris.altoclef.tasks.movement.TimeoutWanderTask;
 import adris.altoclef.tasksystem.Task;
 import adris.altoclef.util.helpers.WorldHelper;
-import net.minecraft.util.math.Vec3d;
-
 import java.util.HashMap;
 import java.util.Optional;
+import net.minecraft.world.phys.Vec3;
 
 /**
  * Use this whenever you want to travel to a target position that may change.
@@ -21,11 +20,11 @@ public abstract class AbstractDoToClosestObjectTask<T> extends Task {
     private boolean wasWandering;
     private Task goalTask = null;
 
-    protected abstract Vec3d getPos(AltoClef mod, T obj);
+    protected abstract Vec3 getPos(AltoClef mod, T obj);
 
-    protected abstract Optional<T> getClosestTo(AltoClef mod, Vec3d pos);
+    protected abstract Optional<T> getClosestTo(AltoClef mod, Vec3 pos);
 
-    protected abstract Vec3d getOriginPos(AltoClef mod);
+    protected abstract Vec3 getOriginPos(AltoClef mod);
 
     protected abstract Task getGoalTask(T obj);
 
@@ -77,7 +76,7 @@ public abstract class AbstractDoToClosestObjectTask<T> extends Task {
                 if (goalTask != null /*isMovingToClosestPos(mod)*/) {
                     setDebugState("Moving towards closest...");
                     double currentHeuristic = getCurrentCalculatedHeuristic(mod);
-                    double closestDistanceSqr = getPos(mod, currentlyPursuing).squaredDistanceTo(mod.getPlayer().getPos());
+                    double closestDistanceSqr = getPos(mod, currentlyPursuing).distanceToSqr(mod.getPlayer().position());
                     int lastTick = WorldHelper.getTicks();
 
                     if (!heuristicMap.containsKey(currentlyPursuing)) {
@@ -90,7 +89,7 @@ public abstract class AbstractDoToClosestObjectTask<T> extends Task {
                     if (heuristicMap.containsKey(newClosest)) {
                         // Our new object has a past potential heuristic calculated, if it's better try it out.
                         CachedHeuristic maybeReAttempt = heuristicMap.get(newClosest);
-                        double maybeClosestDistance = getPos(mod, newClosest).squaredDistanceTo(mod.getPlayer().getPos());
+                        double maybeClosestDistance = getPos(mod, newClosest).distanceToSqr(mod.getPlayer().position());
                         // Get considerably closer (divide distance by 2)
                         if (maybeReAttempt.getHeuristicValue() < h.getHeuristicValue() || maybeClosestDistance < maybeReAttempt.getClosestDistanceSqr() / 4) {
                             setDebugState("Retrying old heuristic!");

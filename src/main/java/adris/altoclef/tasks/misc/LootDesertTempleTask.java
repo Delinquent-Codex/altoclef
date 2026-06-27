@@ -4,12 +4,11 @@ import adris.altoclef.AltoClef;
 import adris.altoclef.tasks.construction.DestroyBlockTask;
 import adris.altoclef.tasks.container.LootContainerTask;
 import adris.altoclef.tasksystem.Task;
-import net.minecraft.block.Blocks;
-import net.minecraft.item.Item;
-import net.minecraft.util.math.BlockPos;
-import net.minecraft.util.math.Vec3i;
-
 import java.util.List;
+import net.minecraft.core.BlockPos;
+import net.minecraft.core.Vec3i;
+import net.minecraft.world.item.Item;
+import net.minecraft.world.level.block.Blocks;
 
 public class LootDesertTempleTask extends Task {
     public final Vec3i[] CHEST_POSITIONS_RELATIVE = {
@@ -48,7 +47,7 @@ public class LootDesertTempleTask extends Task {
         }
         if (looted < 4) {
             setDebugState("Looting a desert temple chest");
-            lootTask = new LootContainerTask(temple.add(CHEST_POSITIONS_RELATIVE[looted]), wanted);
+            lootTask = new LootContainerTask(temple.offset(CHEST_POSITIONS_RELATIVE[looted]), wanted);
             return lootTask;
         }
         setDebugState("Why is this still running? Report this");

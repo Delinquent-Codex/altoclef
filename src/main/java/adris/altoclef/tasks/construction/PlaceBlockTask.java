@@ -16,16 +16,16 @@ import baritone.api.schematic.AbstractSchematic;
 import baritone.api.schematic.ISchematic;
 import baritone.api.utils.BlockOptionalMeta;
 import baritone.api.utils.input.Input;
-import net.minecraft.block.Block;
-import net.minecraft.block.BlockState;
-import net.minecraft.block.Blocks;
-import net.minecraft.client.MinecraftClient;
-import net.minecraft.item.Item;
-import net.minecraft.util.math.BlockPos;
 import org.apache.commons.lang3.ArrayUtils;
 
 import java.util.Arrays;
 import java.util.List;
+import net.minecraft.client.Minecraft;
+import net.minecraft.core.BlockPos;
+import net.minecraft.world.item.Item;
+import net.minecraft.world.level.block.Block;
+import net.minecraft.world.level.block.Blocks;
+import net.minecraft.world.level.block.state.BlockState;
 
 /**
  * Place a block type at a position
@@ -139,7 +139,7 @@ public class PlaceBlockTask extends Task implements ITaskRequiresGrounded {
         // Place block
         if (tryingAlternativeWay()) {
             setDebugState("Alternative way: Trying to go above block to place block.");
-            return new GetToBlockTask(target.up(), false);
+            return new GetToBlockTask(target.above(), false);
         } else {
             setDebugState("Letting baritone place a block.");
             // Perform baritone placement
@@ -169,7 +169,7 @@ public class PlaceBlockTask extends Task implements ITaskRequiresGrounded {
 
     @Override
     public boolean isFinished() {
-        assert MinecraftClient.getInstance().world != null;
+        assert Minecraft.getInstance().level != null;
         if (useThrowaways) {
             return WorldHelper.isSolidBlock(target);
         }

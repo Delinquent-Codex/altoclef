@@ -8,8 +8,6 @@ import adris.altoclef.commandsystem.args.ListArg;
 import adris.altoclef.commandsystem.exception.CommandException;
 import adris.altoclef.tasksystem.Task;
 import adris.altoclef.util.ItemTarget;
-import net.minecraft.item.ItemStack;
-
 import java.util.List;
 
 public class GetCommand extends Command {
@@ -42,7 +40,7 @@ public class GetCommand extends Command {
 
     @Override
     protected void call(AltoClef mod, ArgParser parser) throws CommandException {
-        List<ItemTarget> items = parser.get(List.class);
+        List<ItemTarget> items = parser.getList(ItemTarget.class);
 
         getItems(mod, items);
     }

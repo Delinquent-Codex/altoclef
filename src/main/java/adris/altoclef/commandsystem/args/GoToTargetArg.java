@@ -6,15 +6,15 @@ import adris.altoclef.commandsystem.GotoTarget;
 import adris.altoclef.commandsystem.StringReader;
 import adris.altoclef.commandsystem.exception.CommandNotFinishedException;
 import adris.altoclef.util.Dimension;
-import net.minecraft.client.MinecraftClient;
-import net.minecraft.util.hit.BlockHitResult;
-import net.minecraft.util.hit.HitResult;
-import net.minecraft.util.math.BlockPos;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.Stream;
+import net.minecraft.client.Minecraft;
+import net.minecraft.core.BlockPos;
+import net.minecraft.world.phys.BlockHitResult;
+import net.minecraft.world.phys.HitResult;
 
 public class GoToTargetArg extends Arg<GotoTarget> {
 
@@ -69,14 +69,14 @@ public class GoToTargetArg extends Arg<GotoTarget> {
         return new GotoTarget(x, y, z, dimension, coordType);
     }
 
-    private static List<String> getCoordsSuggestion(MinecraftClient client, List<Integer> numbers) {
-        HitResult hit = client.crosshairTarget;
+    private static List<String> getCoordsSuggestion(Minecraft client, List<Integer> numbers) {
+        HitResult hit = client.hitResult;
 
         BlockPos pos;
         if (hit instanceof BlockHitResult blockHit) {
             pos = blockHit.getBlockPos();
         } else {
-            pos = client.player.getBlockPos();
+            pos = client.player.blockPosition();
         }
 
         // pick which axis to suggest next
@@ -113,7 +113,7 @@ public class GoToTargetArg extends Arg<GotoTarget> {
         }
 
         if (numbers.isEmpty()) {
-            MinecraftClient client = MinecraftClient.getInstance();
+            Minecraft client = Minecraft.getInstance();
             if (client == null || client.player == null) {
                 return Stream.empty();
             }

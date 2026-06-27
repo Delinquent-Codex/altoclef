@@ -1,7 +1,7 @@
 package adris.altoclef.tasksystem;
 
 import adris.altoclef.AltoClef;
-import net.minecraft.client.network.ClientPlayerEntity;
+import net.minecraft.client.player.LocalPlayer;
 
 /**
  * Some tasks may mess up royally if we interrupt them while mid air.
@@ -14,7 +14,7 @@ public interface ITaskRequiresGrounded extends ITaskCanForce {
         if (interruptingCandidate instanceof ITaskOverridesGrounded)
             return false;
 
-        ClientPlayerEntity player = AltoClef.getInstance().getPlayer();
-        return !(player.isOnGround() || player.isSwimming() || player.isTouchingWater() || player.isClimbing());
+        LocalPlayer player = AltoClef.getInstance().getPlayer();
+        return !(player.onGround() || player.isSwimming() || player.isInWater() || player.onClimbable());
     }
 }

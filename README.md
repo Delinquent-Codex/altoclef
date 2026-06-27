@@ -1,120 +1,112 @@
-# Links
-- [About](#altoclef)
-- [Versions](#versions)
-- [Download](#download)
-- [FAQ](#faq)
-- [Other useful files](#other-useful-files)
-
 # AltoClef
-*Plays block game.*
 
-*Powered by Baritone.*
+AltoClef is a client-side Fabric automation mod powered by Baritone. This branch is a single-target port for Minecraft Java Edition 26.2.
 
-A client side bot that tries to beat Minecraft on its own...
+This fork is maintained at [Delinquent-Codex/altoclef](https://github.com/Delinquent-Codex/altoclef). The original AltoClef authors and contributors remain credited in `fabric.mod.json`; this port preserves the MIT license and bundles a source-based Baritone integration under Baritone's LGPL-3.0 license.
 
-**This fork is still under development and is nowhere near perfect, if you have any questions, suggestions, ideas or find a bug don't hesitate to reach out!
-You can use the [issues](https://github.com/MiranCZ/altoclef/issues). Or contact me on discord!**
+## Supported Version
 
-Became [the first bot to beat Minecraft fully autonomously](https://youtu.be/baAa6s8tahA) on May 24, 2021.
+| Component | Version |
+| --- | --- |
+| Minecraft | 26.2 |
+| Java | 25 |
+| Fabric Loader | 0.19.3 |
+| Fabric API | 0.153.0+26.2 |
+| Fabric Loom | 1.17.12 |
+| Gradle | 9.6.0 |
+| MixinExtras | 0.5.4 |
+| Nether Pathfinder | 1.6 |
 
-**Join the [Discord Server](https://discord.gg/JdFP4Kqdqc)** for discussions/updates/goofs & gaffs
+Minecraft 26.2 is built with the current Fabric toolchain using Mojang names. No Yarn 26.2 mapping dependency is declared because the Fabric metadata for 26.2 did not publish a Yarn artifact for this version when this port was made.
 
-## About this fork
-This fork aims to improve AltoClef by fixing a lot of bugs and optimizing some things. The main focus is optimizing the `MarvionBeatMinecraftTask` (I will just refer to it as `BeatMinecraftTask`) from [Marvion's fork](https://github.com/MarvionKirito/altoclef).
+## Install
 
-Because I rewrote a good portion of the `BeatMinecraftTask` a lot of the config settings don't work. Although I plan to implement configs in the future of course.  
+1. Install Minecraft 26.2 with Fabric Loader 0.19.3.
+2. Install Fabric API 0.153.0+26.2 in the `mods` folder.
+3. Put the remapped AltoClef jar from `build/libs` into the same `mods` folder.
+4. Do not install a separate Baritone jar. The required Baritone implementation is included in AltoClef.
 
-## The preprocessor
-I am currently using the [replay mod preprocessor](https://github.com/ReplayMod/preprocessor) to keep the mod updated across multiple versions at the same time.
+AltoClef is client-only. It is not a server mod.
 
-### Versions
-Thanks to that, the mod is currently available on **fabric** for (basically) all versions between `1.21.1` and `1.16.5` (inclusive).
+## Build
 
-(If there is a specific version in this range that you would like to use, and it isn't supported you can try creating an issue).
+Use Java 25. The Gradle build also declares a Java 25 toolchain.
 
+```bash
+./gradlew clean build
+```
 
-> [!NOTE]   
-> All of the versions use the "same release" of Altoclef, although some of them use older versions of baritone.
-You can check out the baritone [here](https://github.com/MiranCZ/baritone_altoclef)
+The distributable jar is written to:
 
+```text
+build/libs/altoclef-0.19.0-port.1+mc26.2.jar
+```
 
-## How it works
+The build runs `verifyJarContents`, which checks that the final jar contains Fabric metadata, AltoClef and Baritone mixin configs, the AltoClef entrypoint, required bundled libraries, and no bundled Minecraft or Fabric Loader/API classes.
 
-Take a look at this [Guide from the wiki](https://github.com/MiranCZ/altoclef/wiki/1:-Documentation:-Big-Picture)
-or this [Video explanation](https://youtu.be/q5OmcinQ2ck?t=387)
+## Development Client
 
+```bash
+./gradlew runClient
+```
 
-## Download
-> [!IMPORTANT]  
-> After installing, please move/delete your old baritone configurations if you have any. Preexisting baritone
-configurations will interfere with altoclef and introduce bugs. This will be fixed in the future.
+Use a throwaway Fabric 26.2 instance for runtime testing. Basic smoke checks for this port are:
 
+- Reach the title screen without AltoClef or mixin errors.
+- Create or load a local world.
+- Confirm AltoClef initializes once.
+- Run help/status commands.
+- Start and stop a simple collection or movement task.
+- Verify inventory and slot handling by opening a container.
+- Verify one Baritone-backed pathing command.
 
-Here is a list of links for download of the latest versions for convenience. 
+## Configuration
 
-| Version | Fabric download link                                                                                          |
-|---------|---------------------------------------------------------------------------------------------------------------|
-| 1.21.1  | [AltoClef 0.19 download](https://github.com/MiranCZ/altoclef/releases/download/0.19/altoclef-1.21.1-0.19.jar) |
-| 1.21    | [AltoClef 0.19 download](https://github.com/MiranCZ/altoclef/releases/download/0.19/altoclef-1.21-0.19.jar)   |
-| 1.20.6  | [AltoClef 0.19 download](https://github.com/MiranCZ/altoclef/releases/download/0.19/altoclef-1.20.6-0.19.jar) |
-| 1.20.5  | [AltoClef 0.19 download](https://github.com/MiranCZ/altoclef/releases/download/0.19/altoclef-1.20.5-0.19.jar) |
-| 1.20.4  | [AltoClef 0.19 download](https://github.com/MiranCZ/altoclef/releases/download/0.19/altoclef-1.20.4-0.19.jar) |
-| 1.20.2  | [AltoClef 0.19 download](https://github.com/MiranCZ/altoclef/releases/download/0.19/altoclef-1.20.2-0.19.jar) |
-| 1.20.1  | [AltoClef 0.19 download](https://github.com/MiranCZ/altoclef/releases/download/0.19/altoclef-1.20.1-0.19.jar) |
-| 1.19.4  | [AltoClef 0.19 download](https://github.com/MiranCZ/altoclef/releases/download/0.19/altoclef-1.19.4-0.19.jar) |
-| 1.18.2  | [AltoClef 0.19 download](https://github.com/MiranCZ/altoclef/releases/download/0.19/altoclef-1.18.2-0.19.jar) |
-| 1.18    | [AltoClef 0.19 download](https://github.com/MiranCZ/altoclef/releases/download/0.19/altoclef-1.18-0.19.jar)   |
-| 1.17.1  | [AltoClef 0.19 download](https://github.com/MiranCZ/altoclef/releases/download/0.19/altoclef-1.17.1-0.19.jar) |
-| 1.16.5  | [AltoClef 0.19 download](https://github.com/MiranCZ/altoclef/releases/download/0.19/altoclef-1.16.5-0.19.jar) |
+AltoClef writes configuration under the Minecraft config directory in the `altoclef` folder. The main settings file is:
 
+```text
+config/altoclef/altoclef_settings.json
+```
 
-You can also [check releases](https://github.com/MiranCZ/altoclef/releases) for all previous releases.
+Existing old Baritone configuration can interfere with AltoClef behavior. Remove old standalone Baritone configs before testing this bundled build.
 
+## Baritone
 
-## FAQ
+No published Fabric 26.2 Baritone artifact with the required AltoClef internals was available for this port. Baritone source is vendored under `third_party/baritone` from:
 
-### My Altoclef is crashing! What do I do?
+```text
+https://github.com/cabaletta/baritone
+commit 775f4ca97f64bba5780f0f012485dce20b36fb44
+branch 1.21.11
+```
 
-> [!WARNING]    
-> If you are trying to run AltoClef on cracked launchers (TLauncher, launchers to run the game on mobile etc...) or unofficial launchers there is a high change I might not help you.
+The vendored source is compiled into the AltoClef jar. Nether Elytra pathfinding uses `dev.babbaj:nether-pathfinder:1.6` as a nested dependency.
 
-- First check if you downloaded the right file for the right Minecraft version, every release has the name in the following pattern: `altoclef-<minecraftVersion>-<altoclefVersion>.jar`.
+All Baritone path, goal, selection, cached-chunk, and debug visualization can be disabled without disabling pathfinding:
 
+```text
+#set renderBaritoneVisuals false
+```
 
-- You **DO NOT** need to include baritone in your `mods` folder, it is already included in Altoclef. If you did include it, remove it.
+For native-render regression testing, `#set renderDiagnostics true` logs one bounded ownership snapshot every 30 seconds. It is disabled by default.
 
+Every transient Baritone render batch owns and closes its native vertex allocator, mesh data, and uploaded GPU buffers. World unload also cancels pathing, clears selections and goals, and closes world-cache workers before another world can be joined.
 
-- Altoclef **is not** intended to be used with other mods, so if the cause of the crash is another mod you are using it is very likely I won't do anything about that.
+## Migration Summary
 
+- Removed the active ReplayMod preprocessor multi-version build.
+- Flattened the project into one Fabric 26.2 target.
+- Updated Minecraft, Fabric Loader, Fabric API, Loom, MixinExtras, Jackson, Gradle, and Java toolchain versions.
+- Ported AltoClef and vendored Baritone sources to current 26.2 client, item component, inventory, recipe display, registry, rendering, screen, entity, and chunk APIs.
+- Updated Fabric metadata for a client-only mod.
+- Added CI and local jar-content verification for the 26.2 distributable.
 
-If you checked everything above and are still having trouble you can reach out to me on Altoclef discord (or create an issue).
+## Known Limitations
 
-**Your message should include the following things:** exactly what problem you are having,
-what Minecraft version are you trying to run with what Altoclef version,
-specify that you are referring to this fork (there are multiple forks, so it makes everyone's life easier), what mods (if any) you are using and a crash-log
-(if the mod didn't crash on startup but rather after a specific action recording or description of that would also help).
+The port has been runtime-tested on Fabric API alone, Sodium, Sodium with Iris, and Fabulously Optimized 14.0.0-alpha.3. Renderer regression coverage includes a 15-minute NMT run, ten unload/rejoin cycles, and runs with path rendering or all Baritone visualization disabled. This does not replace task-specific gameplay testing across AltoClef's full command catalogue.
 
-### Why was `terminator` and the ability to attack players removed?
-I don't feel like this bot should be focused on use on servers and having to handle players complicates things.
-So I just decided to remove that behaviour (at least for now).
+## Useful Docs
 
-### Can you add X version of Minecraft?
-
-**Please note that for newest version of minecraft I need to wait for [baritone](https://github.com/MeteorDevelopment/baritone) to be ported first. Unless there is a branch for the specific version, please do not message me about that version since I need to wait for baritone to be ported first.**
-
-
-I am planning to support all versions from 1.16.5 and above.
-
-You can open an issue if you want support for specific version in that range that isn't supported yet.
-
-### Can you add integration with LLM?
-no.
-
-
-## Other useful files
-
-### [Usage Guide](usage.md)
-
-### [TODO's/Future Features](TODO.md)
-
-### [Development Guide](develop.md)
+- [Usage Guide](usage.md)
+- [Development Guide](develop.md)
+- [Changelog](changelog.md)

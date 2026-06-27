@@ -52,7 +52,7 @@ public class ListArg<T> extends Arg<List<T>> {
             }
         }
 
-        ParseResult p = getParts(parser);
+        adris.altoclef.commandsystem.args.ListArg.ParseResult p = getParts(parser);
         String[] parts = p.parts;
         boolean hasClosingBracket = p.hasClosingBracket;
 
@@ -99,7 +99,7 @@ public class ListArg<T> extends Arg<List<T>> {
         } catch (BadCommandSyntaxException ignored) {
             return Stream.empty();
         } catch (CommandNotFinishedException ignored) {
-            ParseResult parsed = getParts(reader);
+            adris.altoclef.commandsystem.args.ListArg.ParseResult parsed = getParts(reader);
             if (parsed.hasClosingBracket) {
                 return Stream.empty();
             }
@@ -129,7 +129,7 @@ public class ListArg<T> extends Arg<List<T>> {
 
 
 
-    private static ParseResult getParts(StringReader reader) {
+    private static adris.altoclef.commandsystem.args.ListArg.ParseResult getParts(StringReader reader) {
         String fullList = "";
         boolean hasClosingBracket = false;
 
@@ -163,7 +163,7 @@ public class ListArg<T> extends Arg<List<T>> {
             parts[i] = parts[i].strip();
         }
 
-        return new ParseResult(parts, hasClosingBracket, endInColumn);
+        return new adris.altoclef.commandsystem.args.ListArg.ParseResult(parts, hasClosingBracket, endInColumn);
     }
 
     private static record ParseResult(String[] parts, boolean hasClosingBracket, boolean endsInColumn) {
@@ -181,8 +181,8 @@ public class ListArg<T> extends Arg<List<T>> {
     }
 
     @Override
+    @SuppressWarnings("unchecked")
     public Class<List<T>> getType() {
-        //noinspection unchecked - this is not ideal, but cannot be done better
         return (Class<List<T>>)(Class<?>) List.class;
     }
 

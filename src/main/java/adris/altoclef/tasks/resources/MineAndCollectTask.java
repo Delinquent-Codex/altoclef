@@ -11,24 +11,23 @@ import adris.altoclef.tasks.movement.PickupDroppedItemTask;
 import adris.altoclef.tasksystem.Task;
 import adris.altoclef.util.ItemTarget;
 import adris.altoclef.util.MiningRequirement;
+import adris.altoclef.util.helpers.ItemComponentHelper;
 import adris.altoclef.util.helpers.StorageHelper;
 import adris.altoclef.util.helpers.WorldHelper;
 import adris.altoclef.util.progresscheck.MovementProgressChecker;
 import adris.altoclef.util.slots.CursorSlot;
 import adris.altoclef.util.slots.PlayerSlot;
 import adris.altoclef.util.time.TimerGame;
-import net.minecraft.block.Block;
-import net.minecraft.client.MinecraftClient;
-import net.minecraft.entity.ItemEntity;
-import net.minecraft.item.Item;
-import net.minecraft.item.ItemStack;
-import net.minecraft.item.Items;
-import net.minecraft.item.MiningToolItem;
-import net.minecraft.util.Pair;
-import net.minecraft.util.math.BlockPos;
-import net.minecraft.util.math.Vec3d;
-
 import java.util.*;
+import net.minecraft.client.Minecraft;
+import net.minecraft.core.BlockPos;
+import adris.altoclef.compat.Tuple;
+import net.minecraft.world.entity.item.ItemEntity;
+import net.minecraft.world.item.Item;
+import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.Items;
+import net.minecraft.world.level.block.Block;
+import net.minecraft.world.phys.Vec3;
 
 public class MineAndCollectTask extends ResourceTask {
 
@@ -63,7 +62,7 @@ public class MineAndCollectTask extends ResourceTask {
         List<Block> result = new ArrayList<>(targets.length);
         for (ItemTarget target : targets) {
             for (Item item : target.getMatches()) {
-                Block block = Block.getBlockFromItem(item);
+                Block block = Block.byItem(item);
                 if (block != null && !WorldHelper.isAir(block)) {
                     result.add(block);
                 }
@@ -126,18 +125,17 @@ public class MineAndCollectTask extends ResourceTask {
 
     private void makeSureToolIsEquipped(AltoClef mod) {
         if (_cursorStackTimer.elapsed() && !mod.getFoodChain().needsToEat()) {
-            assert MinecraftClient.getInstance().player != null;
+            assert Minecraft.getInstance().player != null;
             ItemStack cursorStack = StorageHelper.getItemStackInCursorSlot();
             if (cursorStack != null && !cursorStack.isEmpty()) {
                 // We have something in our cursor stack
                 Item item = cursorStack.getItem();
-                if (item.getDefaultStack().isSuitableFor(mod.getWorld().getBlockState(_subtask.miningPos()))) {
+                if (item.getDefaultInstance().isCorrectToolForDrops(mod.getWorld().getBlockState(_subtask.miningPos()))) {
                     // Our cursor stack would help us mine our current block
-                    Item currentlyEquipped = StorageHelper.getItemStackInSlot(PlayerSlot.getEquipSlot()).getItem();
-                    if (item instanceof MiningToolItem) {
-                        if (currentlyEquipped instanceof MiningToolItem currentPick) {
-                            MiningToolItem swapPick = (MiningToolItem) item;
-                            if (ToolMaterialVer.getMiningLevel(swapPick) > ToolMaterialVer.getMiningLevel(currentPick)) {
+                    ItemStack currentlyEquipped = StorageHelper.getItemStackInSlot(PlayerSlot.getEquipSlot());
+                    if (ItemComponentHelper.isTool(cursorStack)) {
+                        if (ItemComponentHelper.isTool(currentlyEquipped)) {
+                            if (ToolMaterialVer.getMiningLevel(cursorStack) > ToolMaterialVer.getMiningLevel(currentlyEquipped)) {
                                 // We can equip a better pickaxe.
                                 mod.getSlotHandler().forceEquipSlot(CursorSlot.SLOT);
                             }
@@ -168,65 +166,65 @@ public class MineAndCollectTask extends ResourceTask {
         }
 
         @Override
-        protected Vec3d getPos(AltoClef mod, Object obj) {
+        protected Vec3 getPos(AltoClef mod, Object obj) {
             if (obj instanceof BlockPos b) {
                 return WorldHelper.toVec3d(b);
             }
             if (obj instanceof ItemEntity item) {
-                return item.getPos();
+                return item.position();
             }
             throw new UnsupportedOperationException("Shouldn't try to get the position of object " + obj + " of type " + (obj != null ? obj.getClass().toString() : "(null object)"));
         }
 
         @Override
-        protected Optional<Object> getClosestTo(AltoClef mod, Vec3d pos) {
-            Pair<Double, Optional<BlockPos>> closestBlock = getClosestBlock(mod,pos,  _blocks);
-            Pair<Double, Optional<ItemEntity>> closestDrop = getClosestItemDrop(mod,pos,  _targets);
+        protected Optional<Object> getClosestTo(AltoClef mod, Vec3 pos) {
+            Tuple<Double, Optional<BlockPos>> closestBlock = getClosestBlock(mod,pos,  _blocks);
+            Tuple<Double, Optional<ItemEntity>> closestDrop = getClosestItemDrop(mod,pos,  _targets);
 
-            double blockSq = closestBlock.getLeft();
-            double dropSq = closestDrop.getLeft();
+            double blockSq = closestBlock.getA();
+            double dropSq = closestDrop.getA();
 
             // We can't mine right now.
             if (mod.getExtraBaritoneSettings().isInteractionPaused()) {
-                return closestDrop.getRight().map(Object.class::cast);
+                return closestDrop.getB().map(Object.class::cast);
             }
 
             if (dropSq <= blockSq) {
-                return closestDrop.getRight().map(Object.class::cast);
+                return closestDrop.getB().map(Object.class::cast);
             } else {
-                return closestBlock.getRight().map(Object.class::cast);
+                return closestBlock.getB().map(Object.class::cast);
             }
         }
 
-        public static Pair<Double, Optional<ItemEntity>> getClosestItemDrop(AltoClef mod,Vec3d pos, ItemTarget... items) {
+        public static Tuple<Double, Optional<ItemEntity>> getClosestItemDrop(AltoClef mod,Vec3 pos, ItemTarget... items) {
             Optional<ItemEntity> closestDrop = Optional.empty();
             if (mod.getEntityTracker().itemDropped(items)) {
                 closestDrop = mod.getEntityTracker().getClosestItemDrop(pos, items);
             }
 
-            return new Pair<>(
+            return new Tuple<>(
                     // + 5 to make the bot stop mining a bit less
-                    closestDrop.map(itemEntity -> itemEntity.squaredDistanceTo(pos) + 10).orElse(Double.POSITIVE_INFINITY),
+                    closestDrop.map(itemEntity -> itemEntity.distanceToSqr(pos) + 10).orElse(Double.POSITIVE_INFINITY),
                     closestDrop
             );
         }
 
-        public static Pair<Double,Optional<BlockPos> > getClosestBlock(AltoClef mod,Vec3d pos ,Block... blocks) {
+        public static Tuple<Double,Optional<BlockPos> > getClosestBlock(AltoClef mod,Vec3 pos ,Block... blocks) {
             Optional<BlockPos> closestBlock = mod.getBlockScanner().getNearestBlock(pos, check -> {
 
                 if (mod.getBlockScanner().isUnreachable(check)) return false;
                 return WorldHelper.canBreak(check);
             }, blocks);
 
-            return new Pair<>(
+            return new Tuple<>(
                     closestBlock.map(blockPos -> BlockPosVer.getSquaredDistance(blockPos, pos)).orElse(Double.POSITIVE_INFINITY),
                     closestBlock
             );
         }
 
         @Override
-        protected Vec3d getOriginPos(AltoClef mod) {
-            return mod.getPlayer().getPos();
+        protected Vec3 getOriginPos(AltoClef mod) {
+            return mod.getPlayer().position();
         }
 
         @Override
@@ -269,7 +267,7 @@ public class MineAndCollectTask extends ResourceTask {
                 return mod.getBlockScanner().isBlockAtPosition(b, _blocks) && WorldHelper.canBreak(b);
             }
             if (obj instanceof ItemEntity drop) {
-                Item item = drop.getStack().getItem();
+                Item item = drop.getItem().getItem();
                 if (_targets != null) {
                     for (ItemTarget target : _targets) {
                         if (target.matches(item)) return true;

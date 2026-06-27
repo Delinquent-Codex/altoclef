@@ -4,12 +4,16 @@ import adris.altoclef.AltoClef;
 import adris.altoclef.multiversion.recipemanager.RecipeManagerWrapper;
 import adris.altoclef.multiversion.recipemanager.WrappedRecipeEntry;
 import adris.altoclef.util.RecipeTarget;
-import net.minecraft.client.MinecraftClient;
-import net.minecraft.client.network.ClientPlayNetworkHandler;
-import net.minecraft.item.Item;
-import net.minecraft.item.ItemStack;
-import net.minecraft.recipe.*;
-
+import net.minecraft.client.Minecraft;
+import net.minecraft.client.multiplayer.ClientPacketListener;
+import net.minecraft.util.context.ContextKeySet;
+import net.minecraft.util.context.ContextMap;
+import net.minecraft.world.item.crafting.*;
+import net.minecraft.world.item.Item;
+import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.crafting.Ingredient;
+import net.minecraft.world.item.crafting.display.ShapedCraftingRecipeDisplay;
+import net.minecraft.world.item.crafting.display.ShapelessCraftingRecipeDisplay;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
@@ -21,6 +25,7 @@ public class CraftingRecipeTracker extends Tracker{
 
     private final HashMap<Item, List<adris.altoclef.util.CraftingRecipe>> itemRecipeMap = new HashMap<>();
     private final HashMap<adris.altoclef.util.CraftingRecipe, ItemStack> recipeResultMap = new HashMap<>();
+    private static final ContextMap EMPTY_RECIPE_CONTEXT = new ContextMap.Builder().create(new ContextKeySet.Builder().build());
 
     private boolean shouldRebuild;
 
@@ -34,7 +39,7 @@ public class CraftingRecipeTracker extends Tracker{
 
         if (!hasRecipeForItem(item)) {
             mod.logWarning("trying to access recipe for unknown item: "+item);
-            return null;
+            return Collections.emptyList();
         }
 
         return itemRecipeMap.get(item);
@@ -98,21 +103,26 @@ public class CraftingRecipeTracker extends Tracker{
         // rebuild once we are in game
         if (!AltoClef.inGame()) return;
 
-        ClientPlayNetworkHandler networkHandler =  MinecraftClient.getInstance().getNetworkHandler();
+        ClientPacketListener networkHandler =  Minecraft.getInstance().getConnection();
         if (networkHandler == null) return;
 
-        RecipeManagerWrapper recipeManager = RecipeManagerWrapper.of(networkHandler.getRecipeManager());
+        if (Minecraft.getInstance().player == null) return;
+
+        RecipeManagerWrapper recipeManager = RecipeManagerWrapper.of(Minecraft.getInstance());
+        if (recipeManager == null) return;
 
         for (WrappedRecipeEntry recipe : recipeManager.values()) {
-            if (!(recipe.value() instanceof net.minecraft.recipe.CraftingRecipe craftingRecipe)) continue;
+            List<ItemStack> results = recipe.entry().resultItems(EMPTY_RECIPE_CONTEXT);
+            if (results.isEmpty()
+                    || recipe.entry().craftingRequirements().isEmpty()
+                    || recipe.entry().craftingRequirements().get().isEmpty()) {
+                continue;
+            }
 
-            // not implemented for now because it isn't needed (I hope xd)
-            if (craftingRecipe instanceof SpecialCraftingRecipe) continue;
+            ItemStack displayResult = results.get(0);
+            ItemStack result = new ItemStack(displayResult.getItem(), displayResult.getCount());
 
-            // the arguments shouldn't be used, we can just pass null
-            ItemStack result = new ItemStack(craftingRecipe.getResult(null).getItem(), craftingRecipe.getResult(null).getCount());
-
-            Item[][] altoclefRecipeItems = getShapedCraftingRecipe(craftingRecipe.getIngredients());
+            Item[][] altoclefRecipeItems = getCraftingRecipeItems(recipe);
 
             adris.altoclef.util.CraftingRecipe altoclefRecipe = adris.altoclef.util.CraftingRecipe.newShapedRecipe(altoclefRecipeItems, result.getCount());
 
@@ -133,36 +143,44 @@ public class CraftingRecipeTracker extends Tracker{
         shouldRebuild = false;
     }
 
-    // TODO adjust for small recipes
-    // it is always shaped, but that doesn't matter for shapeless
-    // the second dimension of the array is for different types of items (eq. logs)
-    private static Item[][] getShapedCraftingRecipe(List<Ingredient> ingredients) {
-        Item[][] result = new Item[9][];
-        int x = 0;
+    private static Item[][] getCraftingRecipeItems(WrappedRecipeEntry recipe) {
+        List<Ingredient> ingredients = recipe.entry().craftingRequirements().orElseThrow();
+        int sourceWidth;
+        int sourceHeight;
+        int gridWidth;
 
-        for (Ingredient ingredient : ingredients) {
-            ItemStack[] stacks = ingredient.getMatchingStacks();
-            Item[] items = new Item[stacks.length];
-
-            for (int i = 0; i < stacks.length; i++) {
-                ItemStack stack = stacks[i];
-                if (stack.getCount() > 1) {
-                    throw new IllegalStateException("recipe needs more then one item on a slot... well... shit (ingredients: " + ingredient + ")");
-                }
-
-                items[i] = stack.getItem();
-            }
-
-            if (stacks.length != 0) {
-                // FIXME this is so stupid, but TaskCatalogue is kinda setup this way, so it would require a rewrite to allow for multiple resource :')
-                result[x] = new Item[]{items[0]};
-            } else {
-                result[x] = null;
-            }
-
-            x++;
+        if (recipe.value() instanceof ShapedCraftingRecipeDisplay shaped) {
+            sourceWidth = shaped.width();
+            sourceHeight = shaped.height();
+            gridWidth = sourceWidth <= 2 && sourceHeight <= 2 ? 2 : 3;
+        } else if (recipe.value() instanceof ShapelessCraftingRecipeDisplay) {
+            sourceWidth = Math.min(ingredients.size(), ingredients.size() <= 4 ? 2 : 3);
+            sourceHeight = (ingredients.size() + sourceWidth - 1) / sourceWidth;
+            gridWidth = ingredients.size() <= 4 ? 2 : 3;
+        } else {
+            sourceWidth = 3;
+            sourceHeight = (ingredients.size() + sourceWidth - 1) / sourceWidth;
+            gridWidth = 3;
         }
 
+        Item[][] result = new Item[gridWidth * gridWidth][];
+        for (int sourceIndex = 0; sourceIndex < ingredients.size(); sourceIndex++) {
+            int sourceX = sourceIndex % sourceWidth;
+            int sourceY = sourceIndex / sourceWidth;
+            if (sourceY >= sourceHeight || sourceX >= gridWidth || sourceY >= gridWidth) continue;
+
+            Ingredient ingredient = ingredients.get(sourceIndex);
+            Item[] items = ingredient.display()
+                    .resolveForStacks(EMPTY_RECIPE_CONTEXT)
+                    .stream()
+                    .map(ItemStack::getItem)
+                    .distinct()
+                    .toArray(Item[]::new);
+
+            if (items.length != 0) {
+                result[sourceY * gridWidth + sourceX] = items;
+            }
+        }
 
         return result;
     }

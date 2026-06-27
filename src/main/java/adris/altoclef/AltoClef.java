@@ -3,19 +3,18 @@ package adris.altoclef;
 
 import adris.altoclef.butler.Butler;
 import adris.altoclef.chains.*;
-import adris.altoclef.trackers.BlockScanner;
 import adris.altoclef.commandsystem.CommandExecutor;
 import adris.altoclef.commandsystem.TabCompleter;
 import adris.altoclef.control.InputControls;
 import adris.altoclef.control.PlayerExtraController;
 import adris.altoclef.control.SlotHandler;
+import adris.altoclef.dev.RenderLifecycleRegressionHarness;
 import adris.altoclef.eventbus.EventBus;
 import adris.altoclef.eventbus.events.ClientRenderEvent;
 import adris.altoclef.eventbus.events.ClientTickEvent;
 import adris.altoclef.eventbus.events.SendChatEvent;
 import adris.altoclef.eventbus.events.TitleScreenEntryEvent;
 import adris.altoclef.multiversion.DrawContextWrapper;
-import adris.altoclef.multiversion.RenderLayerVer;
 import adris.altoclef.multiversion.versionedfields.Blocks;
 import adris.altoclef.tasksystem.Task;
 import adris.altoclef.tasksystem.TaskRunner;
@@ -31,14 +30,16 @@ import adris.altoclef.util.helpers.StorageHelper;
 import baritone.Baritone;
 import baritone.altoclef.AltoClefSettings;
 import baritone.api.BaritoneAPI;
-import baritone.api.Settings;
-import net.fabricmc.api.ModInitializer;
-import net.minecraft.client.MinecraftClient;
-import net.minecraft.client.network.ClientPlayerEntity;
-import net.minecraft.client.network.ClientPlayerInteractionManager;
-import net.minecraft.client.world.ClientWorld;
-import net.minecraft.item.Item;
-import net.minecraft.item.Items;
+import baritone.api.event.events.WorldEvent;
+import baritone.api.event.events.type.EventState;
+import baritone.api.event.listener.AbstractGameEventListener;
+import net.fabricmc.api.ClientModInitializer;
+import net.minecraft.client.Minecraft;
+import net.minecraft.client.multiplayer.ClientLevel;
+import net.minecraft.client.multiplayer.MultiPlayerGameMode;
+import net.minecraft.client.player.LocalPlayer;
+import net.minecraft.world.item.Item;
+import net.minecraft.world.item.Items;
 import org.lwjgl.glfw.GLFW;
 
 import java.util.*;
@@ -47,7 +48,7 @@ import java.util.function.Consumer;
 /**
  * Central access point for AltoClef
  */
-public class AltoClef implements ModInitializer {
+public class AltoClef implements ClientModInitializer {
 
     // Static access to altoclef
     private static final Queue<Consumer<AltoClef>> _postInitQueue = new ArrayDeque<>();
@@ -85,12 +86,15 @@ public class AltoClef implements ModInitializer {
     // Pausing
     private boolean paused = false;
     private Task storedTask;
+    private boolean runIdleCommandWhenReady;
+    private RenderLifecycleRegressionHarness renderRegressionHarness;
 
     private static AltoClef instance;
+    private boolean loadInitialized;
 
     // Are we in game (playing in a server/world)
     public static boolean inGame() {
-        return MinecraftClient.getInstance().player != null && MinecraftClient.getInstance().getNetworkHandler() != null;
+        return Minecraft.getInstance().player != null && Minecraft.getInstance().getConnection() != null;
     }
 
     /**
@@ -101,7 +105,7 @@ public class AltoClef implements ModInitializer {
     }
 
     @Override
-    public void onInitialize() {
+    public void onInitializeClient() {
         // This code runs as soon as Minecraft is in a mod-load-ready state.
         // However, some things (like resources) may still be uninitialized.
         // As such, nothing will be loaded here but basic initialization.
@@ -116,6 +120,8 @@ public class AltoClef implements ModInitializer {
     public void onInitializeLoad() {
         // This code should be run after Minecraft loads everything else in.
         // This is the actual start point, controlled by a mixin.
+        if (loadInitialized) return;
+        loadInitialized = true;
 
         initializeBaritoneSettings();
 
@@ -147,7 +153,7 @@ public class AltoClef implements ModInitializer {
 
         // Renderers
         commandStatusOverlay = new CommandStatusOverlay();
-        altoClefTickChart = new AltoClefTickChart(MinecraftClient.getInstance().textRenderer);
+        altoClefTickChart = new AltoClefTickChart(Minecraft.getInstance().font);
 
         // Misc managers
         messageSender = new MessageSender();
@@ -168,8 +174,8 @@ public class AltoClef implements ModInitializer {
             getClientBaritoneSettings().acceptableThrowawayItems.value.addAll(baritoneCanPlace);
             // If we should run an idle command...
             if ((!getUserTaskChain().isActive() || getUserTaskChain().isRunningIdleTask()) && getModSettings().shouldRunIdleCommandWhenNotActive()) {
-                getUserTaskChain().signalNextTaskToBeIdleTask();
-                getCommandExecutor().executeWithPrefix(getModSettings().getIdleCommand());
+                runIdleCommandWhenReady = true;
+                runIdleCommandIfReady();
             }
             // Don't break blocks or place blocks where we are explicitly protected.
             getExtraBaritoneSettings().avoidBlockBreak(blockPos -> settings.isPositionExplicitlyProtected(blockPos));
@@ -203,14 +209,30 @@ public class AltoClef implements ModInitializer {
         TaskCatalogue.init();
 
         getClientBaritone().getGameEventHandler().registerEventListener(new TabCompleter());
+        getClientBaritone().getGameEventHandler().registerEventListener(new AbstractGameEventListener() {
+            @Override
+            public void onWorldEvent(WorldEvent event) {
+                if (event.getState() == EventState.PRE && event.getWorld() == null) {
+                    onWorldUnload();
+                }
+            }
+        });
+        renderRegressionHarness = RenderLifecycleRegressionHarness.createIfEnabled(this);
 
         // External mod initialization
         runEnqueuedPostInits();
     }
 
+    public static void tryInitializeLoad() {
+        if (instance != null) {
+            instance.onInitializeLoad();
+        }
+    }
+
     // Client tick
     private void onClientTick() {
         runEnqueuedPostInits();
+        runIdleCommandIfReady();
 
         inputControls.onTickPre();
 
@@ -230,22 +252,44 @@ public class AltoClef implements ModInitializer {
         messageSender.tick();
 
         inputControls.onTickPost();
+        if (renderRegressionHarness != null) {
+            renderRegressionHarness.tick();
+        }
+    }
+
+    private void runIdleCommandIfReady() {
+        if (!runIdleCommandWhenReady || !inGame() || settings == null) return;
+        if (getUserTaskChain().isActive() && !getUserTaskChain().isRunningIdleTask()) return;
+
+        runIdleCommandWhenReady = false;
+        getUserTaskChain().signalNextTaskToBeIdleTask();
+        getCommandExecutor().executeWithPrefix(getModSettings().getIdleCommand());
     }
 
     public void stopTasks() {
         if (userTaskChain != null) {
             userTaskChain.cancel(this);
         }
-        if (taskRunner.getCurrentTaskChain() != null) {
+        if (taskRunner != null && taskRunner.getCurrentTaskChain() != null) {
             taskRunner.getCurrentTaskChain().stop();
         }
-        commandStatusOverlay.resetTimer();
+        getClientBaritone().getPathingBehavior().forceCancel();
+        if (commandStatusOverlay != null) {
+            commandStatusOverlay.resetTimer();
+        }
+    }
+
+    private void onWorldUnload() {
+        runIdleCommandWhenReady = false;
+        if (blockScanner != null) {
+            blockScanner.reset();
+        }
+        stopTasks();
     }
 
     /// GETTERS AND SETTERS
 
     private void onClientRenderOverlay(DrawContextWrapper context) {
-        context.setRenderLayer(RenderLayerVer.getGuiOverlay());
         if (settings.shouldShowTaskChain()) {
             commandStatusOverlay.render(this, context);
         }
@@ -421,7 +465,7 @@ public class AltoClef implements ModInitializer {
     /**
      * Baritone settings access (could just be static honestly)
      */
-    public Settings getClientBaritoneSettings() {
+    public baritone.api.Settings getClientBaritoneSettings() {
         return Baritone.settings();
     }
 
@@ -463,22 +507,22 @@ public class AltoClef implements ModInitializer {
     /**
      * Minecraft player client access (could just be static honestly)
      */
-    public ClientPlayerEntity getPlayer() {
-        return MinecraftClient.getInstance().player;
+    public LocalPlayer getPlayer() {
+        return Minecraft.getInstance().player;
     }
 
     /**
      * Minecraft world access (could just be static honestly)
      */
-    public ClientWorld getWorld() {
-        return MinecraftClient.getInstance().world;
+    public ClientLevel getWorld() {
+        return Minecraft.getInstance().level;
     }
 
     /**
      * Minecraft client interaction controller access (could just be static honestly)
      */
-    public ClientPlayerInteractionManager getController() {
-        return MinecraftClient.getInstance().interactionManager;
+    public MultiPlayerGameMode getController() {
+        return Minecraft.getInstance().gameMode;
     }
 
     /**

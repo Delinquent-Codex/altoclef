@@ -1,65 +1,90 @@
 # Development Guide
 
-## [Javadocs](https://gaucho-matrero.github.io/altoclef/)
+This checkout is a single-target Minecraft 26.2 Fabric project. The old multi-version ReplayMod preprocessor workflow is no longer active.
 
-## Get it Running (IDE)
+## Requirements
 
-### James Green's setup guide!
+- Java 25
+- Gradle wrapper from this repository
+- A Fabric 26.2 development client
 
-[![James Green's Intellij Setup video on YouTube](https://img.youtube.com/vi/zZ1upxZ43Sg/0.jpg)](https://www.youtube.com/watch?v=zZ1upxZ43Sg)
+The build pins Fabric Loader 0.19.3, Fabric API 0.153.0+26.2, Fabric Loom 1.17.12, and MixinExtras 0.5.4 in `gradle.properties`.
 
-### Text tutorial
+## Build
 
-Clone project and import. I'd suggest using JetBrain's IntelliJ to import the project. Make sure you're using jdk 16 in
-your Project & Gradle Settings!
+On Windows:
 
-1) Open Intellij
-2)
+```powershell
+.\gradlew.bat clean build
+```
 
-Click `File > New > Project from Version Control...` ![image](https://user-images.githubusercontent.com/13367955/146222866-42fa307b-016e-40a6-98bc-6e2428cde2dc.png)
+On macOS or Linux:
 
-3) Copy + Paste the altoclef clone URL and Clone (find
-   here: )![image](https://user-images.githubusercontent.com/13367955/146223264-0cc436c0-4c08-4adc-b948-0ca3da4fbd6f.png)
-4) Go to `File > Settings`, search `Gradle` and make sure your Gradle JVM is set to a JDK that's version 16 (IntelliJ
-   lets you download open source JDKs, any of those should be
-   fine) ![image](https://user-images.githubusercontent.com/13367955/146223463-2cfe8671-5504-430f-93d4-bb5312b2b540.png)
-5) Go to `File > Project Structure`, then under `Project Settings/Project` make sure "Project SDK" is set to version
-   16 ![image](https://user-images.githubusercontent.com/13367955/146223634-dc4d9eb3-293a-4e70-b5fa-29f44145e02c.png)
-7) On the right side of the screen open the gradle tab and navigate to `Tasks/fabric/runClient`.
-   Click `runClient` ![image](https://user-images.githubusercontent.com/13367955/146223786-243c63e9-790f-48d7-b627-4e9191a84f22.png)
+```bash
+./gradlew clean build
+```
 
-If the gradle tab doesn't exist, try `View > Tool Windows > Gradle`
+The build produces:
 
-## Get it Running (Command line)
+```text
+build/libs/altoclef-0.19.0-port.1+mc26.2.jar
+build/libs/altoclef-0.19.0-port.1+mc26.2-sources.jar
+```
 
-1) Git Clone project
-2) `cd` into cloned local repo
-3) `sudo / doas chmod +x gradlew` (skip this step if you are on windows)
-4) `./gradlew build` or `./gradlew runClient`
+`check` depends on `verifyJarContents`, which validates that the packaged jar contains the Fabric metadata, AltoClef entrypoint, mixin configs, Baritone classes, required nested libraries, and no bundled Minecraft or Fabric classes.
 
-## Modifying Baritone (dev mode)
+## Run Client
 
-Alto Clef uses a custom fork of baritone that gives you more control over how baritone works.
-If you wish to make edits to that fork you can do so locally if you follow these steps:
+```bash
+./gradlew runClient
+```
 
-1) Clone [The baritone fork](https://github.com/gaucho-matrero/baritone) into the same directory containing `altoclef`.
-   For example, if you cloned `altoclef` into your desktop, `baritone` should be in your desktop as well.
-2) Run `gradle build` within the fork you just cloned. You may open the folder in an IDE and run the `build` task.
-3) There should now be various `.jar` files starting with `baritone` in the following folder: `baritone/build/libs`
-4) Now within `altoclef`, pass `-Paltoclef.development` as a parameter when running `gradle build`
-   (In IntelliJ, go to the build dropdown -> `Edit Configurations`, then duplicate the `altoclef [build]` configuration.
-   In this duplicate, paste `-Paltoclef.development` into the Arguments text field.)
-5) When you build and pass `-Paltoclef.development`, Alto Clef should now use the jar file inside
-   of your custom `baritone` fork instead of pulling from online. This lets you rapidly test local changes to baritone.
+## Native renderer regression
 
-## Task Development Guides
+Run a repeated-world test with Java 25, a 4096 MiB heap, and native-memory tracking enabled:
 
-### Task Programming Tutorial Stream
+```powershell
+$env:JAVA_TOOL_OPTIONS='-Xmx4096m -XX:NativeMemoryTracking=summary -Daltoclef.renderRegression=true -Daltoclef.renderRegression.cycles=10 -Daltoclef.renderRegression.activeSeconds=90'
+.\gradlew.bat runClient
+```
 
-[![More Recent AltoClef Task Programming VOD](https://img.youtube.com/vi/uROEqwyzn3o/0.jpg)](https://www.youtube.com/watch?v=uROEqwyzn3o)
+The harness starts `@gamer`, keeps path visualization active for 90 seconds, exits and rejoins the world ten times, checks live render-buffer ownership at every unload, and shuts the client down. Set `-Daltoclef.renderRegression.renderPath=false` to disable path lines only, or `-Daltoclef.renderRegression.visuals=false` to repeat the same pathfinding test with all Baritone visualization disabled. While it runs, use `jcmd <pid> VM.native_memory baseline` and `jcmd <pid> VM.native_memory summary.diff` for native-memory snapshots.
 
-### Old (Post Stream) Tutorial VOD
+The default save directory is `New World`. Set `-Daltoclef.renderRegression.world=SaveDirectoryName` when testing another existing save. Use a pre-created disposable save for large modpacks so each cycle tests normal unload/reopen behavior instead of one-time world creation.
 
-[![Rough AltoClef Tutorial VOD](https://img.youtube.com/vi/giBjHDZ7HvY/0.jpg)](https://www.youtube.com/watch?v=giBjHDZ7HvY)
+Use a disposable test profile or world. Confirm the title screen loads, AltoClef initializes once, and the log has no required mixin failures before testing tasks.
 
+## Runtime Smoke Checklist
 
+- Open a local world.
+- Run AltoClef help/status commands.
+- Start and stop a simple task.
+- Check inventory tracking by opening a container.
+- Break or place one block through a task.
+- Run a simple Baritone-backed movement/path command.
+- Leave and re-enter the world.
+- Review the log for mixin, renderer, registry, networking, and resource errors.
+
+## Baritone Source
+
+Baritone is vendored in `third_party/baritone` because no complete published Fabric 26.2 artifact matched AltoClef's API and internal usage. Provenance is recorded in `third_party/baritone/SOURCE.txt`.
+
+Do not replace the vendored source with a local-only jar. If Baritone changes are needed, edit the vendored source and keep the changes reviewable.
+
+## Configuration
+
+AltoClef config files are created under:
+
+```text
+config/altoclef/
+```
+
+The main settings file is:
+
+```text
+config/altoclef/altoclef_settings.json
+```
+
+## CI
+
+The GitHub Actions build runs on pushes and pull requests, sets up Java 25, runs `./gradlew clean build`, uploads the 26.2 jar and sources jar, and uploads test reports on failure.

@@ -7,14 +7,13 @@ import adris.altoclef.util.ItemTarget;
 import adris.altoclef.util.helpers.StlHelper;
 import adris.altoclef.util.helpers.StorageHelper;
 import adris.altoclef.util.slots.Slot;
-import net.minecraft.item.Item;
-import net.minecraft.item.ItemStack;
-import net.minecraft.screen.slot.SlotActionType;
-
 import java.util.Arrays;
 import java.util.List;
 import java.util.Optional;
 import java.util.function.Function;
+import net.minecraft.world.inventory.ContainerInput;
+import net.minecraft.world.item.Item;
+import net.minecraft.world.item.ItemStack;
 
 public class MoveItemToSlotTask extends Task {
 
@@ -68,21 +67,21 @@ public class MoveItemToSlotTask extends Task {
                     }
                 }
                 if (toPlace.isEmpty()) {
-                    Debug.logWarning("Called MoveItemToSlotTask when item/not enough item is available! valid items: " + StlHelper.toString(validItems, Item::getTranslationKey));
+                    Debug.logWarning("Called MoveItemToSlotTask when item/not enough item is available! valid items: " + StlHelper.toString(validItems, Item::getDescriptionId));
                     this.stop();
                     return null;
                 }
-                mod.getSlotHandler().clickSlot(toPlace.get(), 0, SlotActionType.PICKUP);
+                mod.getSlotHandler().clickSlot(toPlace.get(), 0, ContainerInput.PICKUP);
                 return null;
             }
 
             int currentlyPlaced = Arrays.asList(validItems).contains(atTarget.getItem()) ? atTarget.getCount() : 0;
             if (currentHeld.getCount() + currentlyPlaced <= toMove.getTargetCount()) {
                 // Just place all of 'em
-                mod.getSlotHandler().clickSlot(destination, 0, SlotActionType.PICKUP);
+                mod.getSlotHandler().clickSlot(destination, 0, ContainerInput.PICKUP);
             } else {
                 // Place one at a time.
-                mod.getSlotHandler().clickSlot(destination, 1, SlotActionType.PICKUP);
+                mod.getSlotHandler().clickSlot(destination, 1, ContainerInput.PICKUP);
             }
             return null;
         }

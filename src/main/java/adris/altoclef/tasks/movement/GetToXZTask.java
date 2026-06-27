@@ -6,7 +6,7 @@ import adris.altoclef.util.Dimension;
 import adris.altoclef.util.helpers.WorldHelper;
 import baritone.api.pathing.goals.Goal;
 import baritone.api.pathing.goals.GoalXZ;
-import net.minecraft.util.math.BlockPos;
+import net.minecraft.core.BlockPos;
 
 public class GetToXZTask extends CustomBaritoneGoalTask {
 
@@ -46,7 +46,7 @@ public class GetToXZTask extends CustomBaritoneGoalTask {
 
     @Override
     public boolean isFinished() {
-        BlockPos cur = AltoClef.getInstance().getPlayer().getBlockPos();
+        BlockPos cur = AltoClef.getInstance().getPlayer().blockPosition();
         return (cur.getX() == x && cur.getZ() == z && (dimension == null || dimension == WorldHelper.getCurrentDimension()));
     }
 

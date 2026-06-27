@@ -70,9 +70,9 @@ public abstract class AbstractVectorDeserializer<T, UnitType> extends StdDeseria
                         throw new JsonParseException(p, "Invalid token for " + getTypeName() + ". Got: " + p.getCurrentToken());
                     }
                     try {
-                        parts.put(p.getCurrentName(), parseUnit(p.getValueAsString()));
+                        parts.put(p.currentName(), parseUnit(p.getValueAsString()));
                     } catch (Exception e) {
-                        throw new JsonParseException(p, "Failed to parse unit " + p.getCurrentName());
+                        throw new JsonParseException(p, "Failed to parse unit " + p.currentName());
                     }
                     p.nextToken();
                 } else {

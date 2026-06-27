@@ -8,13 +8,12 @@ import adris.altoclef.tasks.resources.KillAndLootTask;
 import adris.altoclef.tasksystem.Task;
 import adris.altoclef.util.ItemTarget;
 import adris.altoclef.util.helpers.ItemHelper;
-import net.minecraft.client.MinecraftClient;
-import net.minecraft.entity.Entity;
-import net.minecraft.entity.ExperienceOrbEntity;
-import net.minecraft.entity.mob.HostileEntity;
-import net.minecraft.entity.mob.SlimeEntity;
-
 import java.util.Optional;
+import net.minecraft.client.Minecraft;
+import net.minecraft.world.entity.Entity;
+import net.minecraft.world.entity.ExperienceOrb;
+import net.minecraft.world.entity.monster.Monster;
+import net.minecraft.world.entity.monster.cubemob.Slime;
 
 public class HeroTask extends Task {
     @Override
@@ -30,16 +29,16 @@ public class HeroTask extends Task {
             setDebugState("Eat first.");
             return null;
         }
-        Optional<Entity> experienceOrb = mod.getEntityTracker().getClosestEntity(ExperienceOrbEntity.class);
+        Optional<Entity> experienceOrb = mod.getEntityTracker().getClosestEntity(ExperienceOrb.class);
         if (experienceOrb.isPresent()) {
             setDebugState("Getting experience.");
             return new GetToEntityTask(experienceOrb.get());
         }
-        assert MinecraftClient.getInstance().world != null;
-        Iterable<Entity> hostiles = MinecraftClient.getInstance().world.getEntities();
+        assert Minecraft.getInstance().level != null;
+        Iterable<Entity> hostiles = Minecraft.getInstance().level.entitiesForRendering();
         if (hostiles != null) {
             for (Entity hostile : hostiles) {
-                if (hostile instanceof HostileEntity || hostile instanceof SlimeEntity) {
+                if (hostile instanceof Monster || hostile instanceof Slime) {
                     Optional<Entity> closestHostile = mod.getEntityTracker().getClosestEntity(hostile.getClass());
                     if (closestHostile.isPresent()) {
                         setDebugState("Killing hostiles or picking hostile drops.");

@@ -3,13 +3,12 @@ package adris.altoclef.ui;
 import adris.altoclef.AltoClef;
 import adris.altoclef.multiversion.InGameHudVer;
 import adris.altoclef.multiversion.DrawContextWrapper;
-import net.minecraft.client.font.TextRenderer;
-import net.minecraft.client.util.math.MatrixStack;
-import net.minecraft.util.math.ColorHelper;
-import net.minecraft.util.math.MathHelper;
-
 import java.util.ArrayList;
 import java.util.List;
+import net.minecraft.client.gui.Font;
+import net.minecraft.util.ARGB;
+import net.minecraft.util.Mth;
+import org.joml.Matrix3x2fStack;
 
 /**
  * displays a chart indicating how much of the tick time is taken up by altoclef
@@ -18,10 +17,10 @@ import java.util.List;
 public class AltoClefTickChart {
 
 
-    protected final TextRenderer textRenderer;
+    protected final Font textRenderer;
     protected final List<Long> list = new ArrayList<>();
 
-    public AltoClefTickChart(TextRenderer textRenderer) {
+    public AltoClefTickChart(Font textRenderer) {
         this.textRenderer = textRenderer;
     }
 
@@ -77,14 +76,14 @@ public class AltoClefTickChart {
 
 
     protected void drawBorderedText(DrawContextWrapper context, String string, int x, int y) {
-        MatrixStack matrixStack = context.getMatrices();
-        matrixStack.push();
-        matrixStack.scale(0.5f,0.5f,1);
+        Matrix3x2fStack matrixStack = context.getMatrices();
+        matrixStack.pushMatrix();
+        matrixStack.scale(0.5f,0.5f);
 
-        context.fill(x*2, y*2, x*2 + this.textRenderer.getWidth(string) + 2, y*2 + this.textRenderer.fontHeight+1, 0x90505050);
+        context.fill(x*2, y*2, x*2 + this.textRenderer.width(string) + 2, y*2 + this.textRenderer.lineHeight+1, 0x90505050);
         context.drawText(this.textRenderer, string, (x + 1)*2, (y + 1)*2, 0xE9E9E9, false);
 
-        matrixStack.pop();
+        matrixStack.popMatrix();
     }
 
 
@@ -113,11 +112,11 @@ public class AltoClefTickChart {
     }
 
     private static int lerp(float delta, int start, int end) {
-        int i = (int) MathHelper.lerp(delta, ColorHelper.Argb.getAlpha(start), ColorHelper.Argb.getAlpha(end));
-        int j = (int) MathHelper.lerp(delta, ColorHelper.Argb.getRed(start), ColorHelper.Argb.getRed(end));
-        int k = (int) MathHelper.lerp(delta, ColorHelper.Argb.getGreen(start), ColorHelper.Argb.getGreen(end));
-        int l = (int) MathHelper.lerp(delta, ColorHelper.Argb.getBlue(start), ColorHelper.Argb.getBlue(end));
-        return ColorHelper.Argb.getArgb(i, j, k, l);
+        int i = (int) Mth.lerpInt(delta, ARGB.alpha(start), ARGB.alpha(end));
+        int j = (int) Mth.lerpInt(delta, ARGB.red(start), ARGB.red(end));
+        int k = (int) Mth.lerpInt(delta, ARGB.green(start), ARGB.green(end));
+        int l = (int) Mth.lerpInt(delta, ARGB.blue(start), ARGB.blue(end));
+        return ARGB.color(i, j, k, l);
     }
 
     private static double nanosToMillis(double nanos) {

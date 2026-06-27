@@ -4,7 +4,7 @@ import adris.altoclef.AltoClef;
 import adris.altoclef.tasks.resources.CollectBucketLiquidTask;
 import adris.altoclef.tasksystem.Task;
 import adris.altoclef.util.ItemTarget;
-import net.minecraft.item.Items;
+import net.minecraft.world.item.Items;
 
 /**
  * use when bot has too many water buckets but you dont want to throw them out
@@ -23,7 +23,7 @@ public class GetRidOfExtraWaterBucketTask extends Task {
         AltoClef mod = AltoClef.getInstance();
 
         if (mod.getItemStorage().getItemCount(Items.WATER_BUCKET) != 0 && !needsPickup) {
-            return new InteractWithBlockTask(new ItemTarget(Items.WATER_BUCKET, 1),mod.getPlayer().getBlockPos().down(), false);
+            return new InteractWithBlockTask(new ItemTarget(Items.WATER_BUCKET, 1),mod.getPlayer().blockPosition().below(), false);
         }
 
         needsPickup = true;

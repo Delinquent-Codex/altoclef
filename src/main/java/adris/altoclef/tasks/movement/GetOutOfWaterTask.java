@@ -8,10 +8,10 @@ import adris.altoclef.util.time.TimerGame;
 import baritone.api.pathing.goals.Goal;
 import baritone.api.utils.input.Input;
 import baritone.pathing.movement.MovementHelper;
-import net.minecraft.block.Blocks;
-import net.minecraft.client.MinecraftClient;
-import net.minecraft.item.Item;
-import net.minecraft.util.math.BlockPos;
+import net.minecraft.client.Minecraft;
+import net.minecraft.core.BlockPos;
+import net.minecraft.world.item.Item;
+import net.minecraft.world.level.block.Blocks;
 
 public class GetOutOfWaterTask extends CustomBaritoneGoalTask{
 
@@ -28,21 +28,21 @@ public class GetOutOfWaterTask extends CustomBaritoneGoalTask{
         AltoClef mod = AltoClef.getInstance();
 
         // get on the surface first
-        if (mod.getPlayer().getAir() < mod.getPlayer().getMaxAir() || mod.getPlayer().isSubmergedInWater()) {
+        if (mod.getPlayer().getAirSupply() < mod.getPlayer().getMaxAirSupply() || mod.getPlayer().isUnderWater()) {
             return super.onTick();
         }
 
         boolean hasBlockBelow = false;
         for (int i = 0; i < 3; i++) {
-            if (mod.getWorld().getBlockState(mod.getPlayer().getSteppingPos().down(i)).getBlock() != Blocks.WATER) {
+            if (mod.getWorld().getBlockState(mod.getPlayer().getOnPos().below(i)).getBlock() != Blocks.WATER) {
                 hasBlockBelow = true;
             }
         }
-        boolean hasAirAbove = mod.getWorld().getBlockState(mod.getPlayer().getBlockPos().up(2)).getBlock().equals(Blocks.AIR);
+        boolean hasAirAbove = mod.getWorld().getBlockState(mod.getPlayer().blockPosition().above(2)).getBlock().equals(Blocks.AIR);
 
         if (hasAirAbove && hasBlockBelow && StorageHelper.getNumberOfThrowawayBlocks(mod) > 0) {
             mod.getInputControls().tryPress(Input.JUMP);
-            if (mod.getPlayer().isOnGround()) {
+            if (mod.getPlayer().onGround()) {
 
                 if (!startedShimmying) {
                     startedShimmying = true;
@@ -52,7 +52,7 @@ public class GetOutOfWaterTask extends CustomBaritoneGoalTask{
             }
 
             mod.getSlotHandler().forceEquipItem(mod.getClientBaritoneSettings().acceptableThrowawayItems.value.toArray(new Item[0]));
-            LookHelper.lookAt(mod, mod.getPlayer().getSteppingPos().down());
+            LookHelper.lookAt(mod, mod.getPlayer().getOnPos().below());
             mod.getInputControls().tryPress(Input.CLICK_RIGHT);
         }
 
@@ -81,14 +81,14 @@ public class GetOutOfWaterTask extends CustomBaritoneGoalTask{
 
     @Override
     public boolean isFinished() {
-        return !AltoClef.getInstance().getPlayer().isTouchingWater() && AltoClef.getInstance().getPlayer().isOnGround();
+        return !AltoClef.getInstance().getPlayer().isInWater() && AltoClef.getInstance().getPlayer().onGround();
     }
 
     private static class EscapeFromWaterGoal implements Goal {
 
         private static boolean isWater(int x, int y, int z) {
-            if (MinecraftClient.getInstance().world == null) return false;
-            return MovementHelper.isWater(MinecraftClient.getInstance().world.getBlockState(new BlockPos(x, y, z)));
+            if (Minecraft.getInstance().level == null) return false;
+            return MovementHelper.isWater(Minecraft.getInstance().level.getBlockState(new BlockPos(x, y, z)));
         }
 
         private static boolean isWaterAdjacent(int x, int y, int z) {

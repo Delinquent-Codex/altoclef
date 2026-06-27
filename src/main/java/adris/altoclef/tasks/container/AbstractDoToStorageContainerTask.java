@@ -8,10 +8,9 @@ import adris.altoclef.tasksystem.Task;
 import adris.altoclef.trackers.storage.ContainerCache;
 import adris.altoclef.trackers.storage.ContainerType;
 import adris.altoclef.util.helpers.WorldHelper;
-import net.minecraft.block.Block;
-import net.minecraft.util.math.BlockPos;
-
 import java.util.Optional;
+import net.minecraft.core.BlockPos;
+import net.minecraft.world.level.block.Block;
 
 /**
  * Opens a STORAGE container and does whatever you want inside of it
@@ -53,9 +52,9 @@ public abstract class AbstractDoToStorageContainerTask extends Task {
             Block type = mod.getWorld().getBlockState(targetPos).getBlock();
             currentContainerType = ContainerType.getFromBlock(type);
         }
-        if (WorldHelper.isChest(targetPos) && WorldHelper.isSolidBlock(targetPos.up()) && WorldHelper.canBreak(targetPos.up())) {
+        if (WorldHelper.isChest(targetPos) && WorldHelper.isSolidBlock(targetPos.above()) && WorldHelper.canBreak(targetPos.above())) {
             setDebugState("Clearing block above chest");
-            return new DestroyBlockTask(targetPos.up());
+            return new DestroyBlockTask(targetPos.above());
         }
         setDebugState("Opening container: " + targetPos.toShortString());
         return new InteractWithBlockTask(targetPos);

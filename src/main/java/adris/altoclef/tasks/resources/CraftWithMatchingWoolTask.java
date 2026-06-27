@@ -3,9 +3,8 @@ package adris.altoclef.tasks.resources;
 import adris.altoclef.util.CraftingRecipe;
 import adris.altoclef.util.ItemTarget;
 import adris.altoclef.util.helpers.ItemHelper;
-import net.minecraft.item.Item;
-
 import java.util.function.Function;
+import net.minecraft.world.item.Item;
 
 public abstract class CraftWithMatchingWoolTask extends CraftWithMatchingMaterialsTask {
 

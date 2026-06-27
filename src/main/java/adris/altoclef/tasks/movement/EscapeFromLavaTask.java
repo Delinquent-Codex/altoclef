@@ -10,15 +10,23 @@ import baritone.api.pathing.goals.Goal;
 import baritone.api.utils.Rotation;
 import baritone.api.utils.input.Input;
 import baritone.pathing.movement.MovementHelper;
-import net.minecraft.block.Blocks;
-import net.minecraft.client.MinecraftClient;
-import net.minecraft.client.network.ClientPlayerEntity;
-import net.minecraft.item.*;
-import net.minecraft.util.hit.BlockHitResult;
-import net.minecraft.util.hit.HitResult;
-import net.minecraft.util.math.*;
-import net.minecraft.world.RaycastContext;
-
+import net.minecraft.client.Minecraft;
+import net.minecraft.client.player.LocalPlayer;
+import net.minecraft.core.BlockPos;
+import net.minecraft.core.Direction;
+import net.minecraft.world.item.*;
+import net.minecraft.util.Mth;
+import net.minecraft.core.*;
+import net.minecraft.world.phys.*;
+import net.minecraft.world.item.Item;
+import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.Items;
+import net.minecraft.world.level.ClipContext;
+import net.minecraft.world.level.block.Blocks;
+import net.minecraft.world.phys.AABB;
+import net.minecraft.world.phys.BlockHitResult;
+import net.minecraft.world.phys.HitResult;
+import net.minecraft.world.phys.Vec3;
 import java.util.Optional;
 import java.util.function.Predicate;
 
@@ -30,8 +38,8 @@ public class EscapeFromLavaTask extends CustomBaritoneGoalTask {
 
     public EscapeFromLavaTask(AltoClef mod,float strength) {
         this.strength = strength;
-        avoidPlacingRiskyBlock = (blockPos -> mod.getPlayer().getBoundingBox().intersects(new Box(blockPos))
-                && (mod.getWorld().getBlockState(mod.getPlayer().getBlockPos().down()).getBlock() == Blocks.LAVA || mod.getPlayer().isInLava()));
+        avoidPlacingRiskyBlock = (blockPos -> mod.getPlayer().getBoundingBox().intersects(new AABB(blockPos))
+                && (mod.getWorld().getBlockState(mod.getPlayer().blockPosition().below()).getBlock() == Blocks.LAVA || mod.getPlayer().isInLava()));
     }
 
 
@@ -69,7 +77,7 @@ public class EscapeFromLavaTask extends CustomBaritoneGoalTask {
         }*/
 
         Optional<Item> food = calculateFood(mod);
-        if (food.isPresent() && mod.getPlayer().getHungerManager().getFoodLevel() < 20) {
+        if (food.isPresent() && mod.getPlayer().getFoodData().getFoodLevel() < 20) {
             // can be interrupted by block placing, but we should try to eat whenever we can
             if (mod.getPlayer().isBlocking()) {
                 mod.log("want to eat, trying to stop shielding...");
@@ -82,11 +90,11 @@ public class EscapeFromLavaTask extends CustomBaritoneGoalTask {
 
 
         // Sprint through lava + jump, it's faster
-        if (mod.getPlayer().isInLava() || mod.getWorld().getBlockState(mod.getPlayer().getBlockPos().down()).getBlock() == Blocks.LAVA) {
+        if (mod.getPlayer().isInLava() || mod.getWorld().getBlockState(mod.getPlayer().blockPosition().below()).getBlock() == Blocks.LAVA) {
 
             setDebugState("run away from lava");
 
-            BlockPos steppingPos = mod.getPlayer().getSteppingPos();
+            BlockPos steppingPos = mod.getPlayer().getOnPos();
             if (!mod.getWorld().getBlockState(steppingPos.east()).getBlock().equals(Blocks.LAVA) ||
                     !mod.getWorld().getBlockState(steppingPos.west()).getBlock().equals(Blocks.LAVA) ||
                     !mod.getWorld().getBlockState(steppingPos.south()).getBlock().equals(Blocks.LAVA) ||
@@ -111,9 +119,9 @@ public class EscapeFromLavaTask extends CustomBaritoneGoalTask {
                         BlockHitResult blockHitResult = (BlockHitResult) result;
                         BlockPos pos = blockHitResult.getBlockPos();
 
-                        if (pos.getY() > mod.getPlayer().getSteppingPos().getY()) continue;
+                        if (pos.getY() > mod.getPlayer().getOnPos().getY()) continue;
 
-                        Direction facing = blockHitResult.getSide();
+                        Direction facing = blockHitResult.getDirection();
 
                         if (facing == Direction.UP) continue;
                         LookHelper.lookAt(new Rotation(yaw,pitch));
@@ -143,10 +151,10 @@ public class EscapeFromLavaTask extends CustomBaritoneGoalTask {
     private Optional<Item> calculateFood(AltoClef mod) {
         Item bestFood = null;
         double bestFoodScore = Double.NEGATIVE_INFINITY;
-        ClientPlayerEntity player = mod.getPlayer();
+        LocalPlayer player = mod.getPlayer();
 
-        float hunger = player != null ? player.getHungerManager().getFoodLevel() : 20;
-        float saturation = player != null ? player.getHungerManager().getSaturationLevel() : 20;
+        float hunger = player != null ? player.getFoodData().getFoodLevel() : 20;
+        float saturation = player != null ? player.getFoodData().getSaturationLevel() : 20;
         // Get best food item + calculate food total
         for (ItemStack stack : mod.getItemStorage().getItemStacksPlayerInventory(true)) {
             if (ItemVer.isFood(stack)) {
@@ -192,26 +200,26 @@ public class EscapeFromLavaTask extends CustomBaritoneGoalTask {
 
 
     public HitResult raycast(AltoClef mod,double maxDistance, float pitch, float yaw) {
-        Vec3d cameraPos = mod.getPlayer().getCameraPosVec(MinecraftClient.getInstance().getRenderTickCounter().getTickDelta(true));
-        Vec3d rotationVector = getRotationVector(pitch,yaw);
+        Vec3 cameraPos = mod.getPlayer().getEyePosition(Minecraft.getInstance().getDeltaTracker().getGameTimeDeltaPartialTick(true));
+        Vec3 rotationVector = getRotationVector(pitch,yaw);
 
-        Vec3d vec3d3 = cameraPos.add(rotationVector.x * maxDistance, rotationVector.y * maxDistance, rotationVector.z * maxDistance);
-        return mod.getPlayer().getWorld()
-                .raycast(
-                        new RaycastContext(
-                                cameraPos, vec3d3, RaycastContext.ShapeType.OUTLINE,
-                                false ? RaycastContext.FluidHandling.ANY : RaycastContext.FluidHandling.NONE, mod.getPlayer()
+        Vec3 vec3d3 = cameraPos.add(rotationVector.x * maxDistance, rotationVector.y * maxDistance, rotationVector.z * maxDistance);
+        return mod.getPlayer().level()
+                .clip(
+                        new ClipContext(
+                                cameraPos, vec3d3, ClipContext.Block.OUTLINE,
+                                false ? ClipContext.Fluid.ANY : ClipContext.Fluid.NONE, mod.getPlayer()
                         )
                 );
     }
-    protected final Vec3d getRotationVector(float pitch, float yaw) {
+    protected final Vec3 getRotationVector(float pitch, float yaw) {
         float f = pitch * (float) (Math.PI / 180.0);
         float g = -yaw * (float) (Math.PI / 180.0);
-        float h = MathHelper.cos(g);
-        float i = MathHelper.sin(g);
-        float j = MathHelper.cos(f);
-        float k = MathHelper.sin(f);
-        return new Vec3d((double)(i * j), (double)(-k), (double)(h * j));
+        float h = Mth.cos(g);
+        float i = Mth.sin(g);
+        float j = Mth.cos(f);
+        float k = Mth.sin(f);
+        return new Vec3((double)(i * j), (double)(-k), (double)(h * j));
     }
 
 
@@ -242,7 +250,7 @@ public class EscapeFromLavaTask extends CustomBaritoneGoalTask {
 
     @Override
     public boolean isFinished() {
-        ClientPlayerEntity player = AltoClef.getInstance().getPlayer();
+        LocalPlayer player = AltoClef.getInstance().getPlayer();
 
         return !player.isInLava() && !player.isOnFire();
     }
@@ -255,8 +263,8 @@ public class EscapeFromLavaTask extends CustomBaritoneGoalTask {
     private class EscapeFromLavaGoal implements Goal {
 
         private static boolean isLava(int x, int y, int z) {
-            if (MinecraftClient.getInstance().world == null) return false;
-            return MovementHelper.isLava(MinecraftClient.getInstance().world.getBlockState(new BlockPos(x, y, z)));
+            if (Minecraft.getInstance().level == null) return false;
+            return MovementHelper.isLava(Minecraft.getInstance().level.getBlockState(new BlockPos(x, y, z)));
         }
 
         private static boolean isLavaAdjacent(int x, int y, int z) {
@@ -266,8 +274,8 @@ public class EscapeFromLavaTask extends CustomBaritoneGoalTask {
         }
 
         private static boolean isWater(int x, int y, int z) {
-            if (MinecraftClient.getInstance().world == null) return false;
-            return MovementHelper.isWater(MinecraftClient.getInstance().world.getBlockState(new BlockPos(x, y, z)));
+            if (Minecraft.getInstance().level == null) return false;
+            return MovementHelper.isWater(Minecraft.getInstance().level.getBlockState(new BlockPos(x, y, z)));
         }
 
         @Override

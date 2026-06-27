@@ -11,16 +11,6 @@ import adris.altoclef.commandsystem.exception.CommandException;
 import adris.altoclef.commandsystem.exception.CommandNotFinishedException;
 import adris.altoclef.commandsystem.exception.RuntimeCommandException;
 import adris.altoclef.util.Pair;
-import net.minecraft.client.font.TextRenderer;
-import net.minecraft.client.gui.screen.ChatInputSuggestor;
-import net.minecraft.client.gui.screen.Screen;
-import net.minecraft.client.gui.widget.TextFieldWidget;
-import net.minecraft.text.MutableText;
-import net.minecraft.text.OrderedText;
-import net.minecraft.text.Style;
-import net.minecraft.text.Text;
-import net.minecraft.util.Formatting;
-import net.minecraft.util.math.MathHelper;
 import org.spongepowered.asm.mixin.Final;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Shadow;
@@ -34,45 +24,55 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Optional;
+import net.minecraft.ChatFormatting;
+import net.minecraft.client.gui.Font;
+import net.minecraft.client.gui.components.CommandSuggestions;
+import net.minecraft.client.gui.components.EditBox;
+import net.minecraft.client.gui.screens.Screen;
+import net.minecraft.network.chat.Component;
+import net.minecraft.network.chat.MutableComponent;
+import net.minecraft.network.chat.Style;
+import net.minecraft.util.FormattedCharSequence;
+import net.minecraft.util.Mth;
 
 /**
  * Mixin responsible for highlighting our custom commands.
  * This class is an absolute monstrosity, but the command system is not touched often anyway, so I will leave it like this for now.
  */
-@Mixin(ChatInputSuggestor.class)
+@Mixin(CommandSuggestions.class)
 public abstract class ChatInputSuggestorMixin {
 
     @Unique
-    private static final Style SEMICOLOMN_STYLE = Style.EMPTY.withColor(Formatting.LIGHT_PURPLE);
+    private static final Style SEMICOLOMN_STYLE = Style.EMPTY.withColor(ChatFormatting.LIGHT_PURPLE);
     @Shadow
     @Final
-    private static Style ERROR_STYLE;
+    private static Style UNPARSED_STYLE;
     @Shadow
     @Final
-    private static Style INFO_STYLE;
+    private static Style LITERAL_STYLE;
     @Shadow
     @Final
-    private static List<Style> HIGHLIGHT_STYLES;
+    private static List<Style> ARGUMENT_STYLES;
     @Shadow
     @Final
-    private TextFieldWidget textField;
+    private EditBox input;
     @Shadow
     @Final
-    private List<OrderedText> messages;
+    private List<FormattedCharSequence> commandUsage;
 
     @Shadow
-    private int width;
+    private int commandUsageWidth;
     @Shadow
     @Final
-    private Screen owner;
+    private Screen screen;
 
     @Shadow
-    private int x;
+    private int commandUsagePosition;
     @Shadow
     @Final
-    private TextRenderer textRenderer;
+    private Font font;
     @Unique
-    private final HashMap<Pair<String, Integer>, Pair<MutableText, Optional<Pair<MutableText, Integer>>>> parseCache = new HashMap<>();
+    private final HashMap<Pair<String, Integer>, Pair<MutableComponent, Optional<Pair<MutableComponent, Integer>>>> parseCache = new HashMap<>();
 
     @Unique
     private static String addStyledText(List<Pair<String, Style>> styledText, String original, String currentStr, Style style, StringReader reader) throws CommandException {
@@ -90,20 +90,20 @@ public abstract class ChatInputSuggestorMixin {
         return currentStr.substring(index);
     }
 
-    @Inject(method = "refresh", at = @At("HEAD"))
+    @Inject(method = "updateCommandInfo", at = @At("HEAD"))
     public void injectRefresh(CallbackInfo ci) {
         parseCache.clear();
     }
 
-    @Inject(method = "provideRenderText", at = @At("HEAD"), cancellable = true)
-    public void inj(String original, int firstCharacterIndex, CallbackInfoReturnable<OrderedText> cir) {
-        String full = this.textField.getText();
+    @Inject(method = "formatChat", at = @At("HEAD"), cancellable = true)
+    public void inj(String original, int firstCharacterIndex, CallbackInfoReturnable<FormattedCharSequence> cir) {
+        String full = this.input.getValue();
 
         if (!full.startsWith(AltoClef.getCommandExecutor().getCommandPrefix())) return;
 
         Pair<String, Integer> key = new Pair<>(original, firstCharacterIndex);
 
-        Pair<MutableText, Optional<Pair<MutableText, Integer>>> result;
+        Pair<MutableComponent, Optional<Pair<MutableComponent, Integer>>> result;
         if (parseCache.containsKey(key)) {
             result = parseCache.get(key);
         } else {
@@ -113,28 +113,28 @@ public abstract class ChatInputSuggestorMixin {
 
         if (result == null) return;
 
-        messages.clear();
+        commandUsage.clear();
         if (result.getRight().isPresent()) {
-            MutableText text = result.getRight().get().getLeft();
+            MutableComponent text = result.getRight().get().getLeft();
             int severity = result.getRight().get().getRight();
 
-            messages.add(text.asOrderedText());
+            commandUsage.add(text.getVisualOrderText());
 
             if (severity == 1) {
-                this.x = MathHelper.clamp(this.textField.getCharacterX(original.length()), 0, this.textField.getCharacterX(0) + this.textField.getInnerWidth());
-                this.width = this.textRenderer.getWidth(text.getString());
+                this.commandUsagePosition = Mth.clamp(this.input.getScreenX(original.length()), 0, this.input.getScreenX(0) + this.input.getInnerWidth());
+                this.commandUsageWidth = this.font.width(text.getString());
             } else if (severity == 2) {
-                this.width = this.owner.width;
-                this.x = 0;
+                this.commandUsageWidth = this.screen.width;
+                this.commandUsagePosition = 0;
             }
         }
-        cir.setReturnValue(result.getLeft().asOrderedText());
+        cir.setReturnValue(result.getLeft().getVisualOrderText());
     }
 
     @Unique
-    private Pair<MutableText, Optional<Pair<MutableText, Integer>>> highlightText(String original, int firstCharacterIndex, String full) {
-        MutableText text = Text.empty();
-        MutableText errorMsg = null;
+    private Pair<MutableComponent, Optional<Pair<MutableComponent, Integer>>> highlightText(String original, int firstCharacterIndex, String full) {
+        MutableComponent text = Component.empty();
+        MutableComponent errorMsg = null;
 
         Style splitColor = SEMICOLOMN_STYLE;
         int errorSeverity = 0;
@@ -155,9 +155,9 @@ public abstract class ChatInputSuggestorMixin {
                 }
 
                 if (errorSeverity > 0) {
-                    splitColor = this.ERROR_STYLE;
+                    splitColor = this.UNPARSED_STYLE;
 
-                    styledText.add(new Pair<>(command, this.ERROR_STYLE));
+                    styledText.add(new Pair<>(command, this.UNPARSED_STYLE));
                     if (i + 1 < split.length) {
                         styledText.add(new Pair<>(";", splitColor));
                     }
@@ -166,13 +166,13 @@ public abstract class ChatInputSuggestorMixin {
                 }
 
 
-                Pair<List<Pair<String, Style>>, Pair<Integer, MutableText>> part = getText(
+                Pair<List<Pair<String, Style>>, Pair<Integer, MutableComponent>> part = getText(
                         command.stripLeading(), original.length() + firstCharacterIndex, i + 1 < split.length
                 );
 
                 errorSeverity = part.getRight().getLeft();
                 if (errorSeverity > 0) {
-                    splitColor = this.ERROR_STYLE;
+                    splitColor = this.UNPARSED_STYLE;
                     errorMsg = part.getRight().getRight();
                 }
 
@@ -208,7 +208,7 @@ public abstract class ChatInputSuggestorMixin {
                 int end = Math.min(str.length(), maxLen - length + start);
 
                 String segment = str.substring(start, end);
-                text.append(Text.literal(segment).setStyle(pair.getRight()));
+                text.append(Component.literal(segment).setStyle(pair.getRight()));
 
                 if (length + end >= maxLen) break;
 
@@ -225,14 +225,14 @@ public abstract class ChatInputSuggestorMixin {
     }
 
     @Unique
-    private Pair<List<Pair<String, Style>>, Pair<Integer, MutableText>> getText(String s, int maxLen, boolean showUnfinishedErrors) throws CommandException {
+    private Pair<List<Pair<String, Style>>, Pair<Integer, MutableComponent>> getText(String s, int maxLen, boolean showUnfinishedErrors) throws CommandException {
         CommandExecutor executor = AltoClef.getCommandExecutor();
         StringReader reader = new StringReader(s);
         String original = s;
-        MutableText errorMsg = null;
+        MutableComponent errorMsg = null;
 
         if (s.isBlank() || reader.peek().isEmpty())
-            return new Pair<>(List.of(new Pair<>(s, this.INFO_STYLE)), new Pair<>(0, null));
+            return new Pair<>(List.of(new Pair<>(s, this.LITERAL_STYLE)), new Pair<>(0, null));
 
         String cmd = reader.next();
         boolean hasPrefix = false;
@@ -244,14 +244,14 @@ public abstract class ChatInputSuggestorMixin {
         Command command = executor.get(cmd);
 
         if (command == null) {
-            MutableText error = Text.literal("Unknown command '" + cmd + "'");
+            MutableComponent error = Component.literal("Unknown command '" + cmd + "'");
 
             ArrayList<Pair<String, Style>> res = new ArrayList<>();
             if (hasPrefix) {
-                res.add(new Pair<>(executor.getCommandPrefix(), this.INFO_STYLE));
-                res.add(new Pair<>(s.substring(executor.getCommandPrefix().length()), this.ERROR_STYLE));
+                res.add(new Pair<>(executor.getCommandPrefix(), this.LITERAL_STYLE));
+                res.add(new Pair<>(s.substring(executor.getCommandPrefix().length()), this.UNPARSED_STYLE));
             } else {
-                res.add(new Pair<>(s, this.ERROR_STYLE));
+                res.add(new Pair<>(s, this.UNPARSED_STYLE));
             }
 
             return new Pair<>(res, new Pair<>(2, error));
@@ -260,7 +260,7 @@ public abstract class ChatInputSuggestorMixin {
 
         List<Pair<String, Style>> styledText = new ArrayList<>();
 
-        s = addStyledText(styledText, original, s, this.INFO_STYLE, reader);
+        s = addStyledText(styledText, original, s, this.LITERAL_STYLE, reader);
 
         Arg<?>[] args = command.getArgs();
         int styleIndex = 0;
@@ -278,11 +278,11 @@ public abstract class ChatInputSuggestorMixin {
             Arg.ParseResult result = arg.consumeIfSupplied(reader);
 
             if (result == Arg.ParseResult.CONSUMED) {
-                s = addStyledText(styledText, original, s, this.HIGHLIGHT_STYLES.get(styleIndex), reader);
+                s = addStyledText(styledText, original, s, this.ARGUMENT_STYLES.get(styleIndex), reader);
 
                 styleIndex++;
 
-                if (styleIndex >= this.HIGHLIGHT_STYLES.size()) {
+                if (styleIndex >= this.ARGUMENT_STYLES.size()) {
                     styleIndex = 0;
                 }
 
@@ -300,7 +300,7 @@ public abstract class ChatInputSuggestorMixin {
                         && original.length() == maxLen
                 ) {
                     String str = command.getHelpRepresentation(cmd, i);
-                    errorMsg = Text.literal(str).setStyle(this.INFO_STYLE);
+                    errorMsg = Component.literal(str).setStyle(this.LITERAL_STYLE);
 
                     errorSeverity = 1;
                 }
@@ -310,13 +310,13 @@ public abstract class ChatInputSuggestorMixin {
                 errorSeverity = 2;
             }
 
-            styledText.add(new Pair<>(s, this.ERROR_STYLE));
+            styledText.add(new Pair<>(s, this.UNPARSED_STYLE));
             s = "";
             break;
         }
 
         if (!s.isEmpty() || original.endsWith(" ")) {
-            styledText.add(new Pair<>(s, this.ERROR_STYLE));
+            styledText.add(new Pair<>(s, this.UNPARSED_STYLE));
 
             if (errorMsg == null) {
                 errorMsg = buildErrorMessage("Unexpected argument", original, reader.getIndex());
@@ -328,7 +328,7 @@ public abstract class ChatInputSuggestorMixin {
     }
 
     @Unique
-    private MutableText buildErrorMessage(String message, String original, int index) {
+    private MutableComponent buildErrorMessage(String message, String original, int index) {
         String substr = original.substring(0, index);
 
         int ind = substr.lastIndexOf(" ");
@@ -343,8 +343,8 @@ public abstract class ChatInputSuggestorMixin {
         }
 
         return
-                Text.literal(message)
-                        .append(Text.literal(" at position " + index + ": " + substr + " <--[HERE]"));
+                Component.literal(message)
+                        .append(Component.literal(" at position " + index + ": " + substr + " <--[HERE]"));
     }
 
 }

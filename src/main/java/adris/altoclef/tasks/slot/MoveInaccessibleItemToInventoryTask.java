@@ -7,11 +7,10 @@ import adris.altoclef.util.helpers.ItemHelper;
 import adris.altoclef.util.helpers.StorageHelper;
 import adris.altoclef.util.slots.CursorSlot;
 import adris.altoclef.util.slots.Slot;
-import net.minecraft.item.ItemStack;
-import net.minecraft.screen.slot.SlotActionType;
-
 import java.util.Objects;
 import java.util.Optional;
+import net.minecraft.world.inventory.ContainerInput;
+import net.minecraft.world.item.ItemStack;
 
 public class MoveInaccessibleItemToInventoryTask extends Task {
 
@@ -36,20 +35,20 @@ public class MoveInaccessibleItemToInventoryTask extends Task {
             if (!cursorStack.isEmpty()) {
                 Optional<Slot> moveTo = mod.getItemStorage().getSlotThatCanFitInPlayerInventory(cursorStack, false);
                 if (moveTo.isPresent()) {
-                    mod.getSlotHandler().clickSlot(moveTo.get(), 0, SlotActionType.PICKUP);
+                    mod.getSlotHandler().clickSlot(moveTo.get(), 0, ContainerInput.PICKUP);
                     return null;
                 }
                 if (ItemHelper.canThrowAwayStack(mod, cursorStack)) {
-                    mod.getSlotHandler().clickSlot(Slot.UNDEFINED, 0, SlotActionType.PICKUP);
+                    mod.getSlotHandler().clickSlot(Slot.UNDEFINED, 0, ContainerInput.PICKUP);
                     return null;
                 }
                 Optional<Slot> garbage = StorageHelper.getGarbageSlot(mod);
                 // Try throwing away cursor slot if it's garbage
                 if (garbage.isPresent()) {
-                    mod.getSlotHandler().clickSlot(garbage.get(), 0, SlotActionType.PICKUP);
+                    mod.getSlotHandler().clickSlot(garbage.get(), 0, ContainerInput.PICKUP);
                     return null;
                 }
-                mod.getSlotHandler().clickSlot(Slot.UNDEFINED, 0, SlotActionType.PICKUP);
+                mod.getSlotHandler().clickSlot(Slot.UNDEFINED, 0, ContainerInput.PICKUP);
             } else {
                 StorageHelper.closeScreen();
             }
@@ -76,9 +75,9 @@ public class MoveInaccessibleItemToInventoryTask extends Task {
                 setDebugState("Moving slot " + toMove + " to inventory");
                 // Pick up & move
                 if (Slot.isCursor(toMove)) {
-                    mod.getSlotHandler().clickSlot(toMoveTo.get(), 0, SlotActionType.PICKUP);
+                    mod.getSlotHandler().clickSlot(toMoveTo.get(), 0, ContainerInput.PICKUP);
                 } else {
-                    mod.getSlotHandler().clickSlot(toMove, 0, SlotActionType.PICKUP);
+                    mod.getSlotHandler().clickSlot(toMove, 0, ContainerInput.PICKUP);
                 }
                 return null;
             } else {

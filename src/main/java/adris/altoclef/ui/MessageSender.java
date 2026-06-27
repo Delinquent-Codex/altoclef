@@ -4,11 +4,10 @@ import adris.altoclef.Debug;
 import adris.altoclef.multiversion.entity.PlayerVer;
 import adris.altoclef.util.time.BaseTimer;
 import adris.altoclef.util.time.TimerReal;
-import net.minecraft.client.MinecraftClient;
-import net.minecraft.client.network.ClientPlayNetworkHandler;
-
 import java.util.Comparator;
 import java.util.PriorityQueue;
+import net.minecraft.client.Minecraft;
+import net.minecraft.client.multiplayer.ClientPacketListener;
 
 /**
  * We can't send messages immediately as the server will kick us.
@@ -73,18 +72,18 @@ public class MessageSender {
     }
 
     private void sendChatInstant(String message, boolean command) {
-        if (MinecraftClient.getInstance().player == null) {
+        if (Minecraft.getInstance().player == null) {
             Debug.logError("Failed to send chat message as no client loaded.");
             return;
         }
 
-        ClientPlayNetworkHandler networkHandler =  MinecraftClient.getInstance().getNetworkHandler();
+        ClientPacketListener networkHandler =  Minecraft.getInstance().getConnection();
         assert networkHandler != null;
 
         if (command) {
-            PlayerVer.sendChatCommand(MinecraftClient.getInstance().player, message);
+            PlayerVer.sendChatCommand(Minecraft.getInstance().player, message);
         } else {
-            PlayerVer.sendChatMessage(MinecraftClient.getInstance().player, message);
+            PlayerVer.sendChatMessage(Minecraft.getInstance().player, message);
         }
     }
 
