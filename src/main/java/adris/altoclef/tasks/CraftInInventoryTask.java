@@ -6,13 +6,8 @@ import adris.altoclef.tasks.slot.ReceiveCraftingOutputSlotTask;
 import adris.altoclef.tasksystem.Task;
 import adris.altoclef.util.ItemTarget;
 import adris.altoclef.util.RecipeTarget;
-import adris.altoclef.util.helpers.ItemHelper;
 import adris.altoclef.util.helpers.StorageHelper;
 import adris.altoclef.util.slots.PlayerSlot;
-import adris.altoclef.util.slots.Slot;
-import java.util.List;
-import java.util.Optional;
-import net.minecraft.world.inventory.ContainerInput;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 
@@ -47,15 +42,7 @@ public class CraftInInventoryTask extends ResourceTask {
         _fullCheckFailed = false;
         ItemStack cursorStack = StorageHelper.getItemStackInCursorSlot();
         if (!cursorStack.isEmpty() && !StorageHelper.isBigCraftingOpen()) {
-            Optional<Slot> moveTo = mod.getItemStorage().getSlotThatCanFitInPlayerInventory(cursorStack, false);
-            moveTo.ifPresent(slot -> mod.getSlotHandler().clickSlot(slot, 0, ContainerInput.PICKUP));
-            if (ItemHelper.canThrowAwayStack(mod, cursorStack)) {
-                mod.getSlotHandler().clickSlot(Slot.UNDEFINED, 0, ContainerInput.PICKUP);
-            }
-            Optional<Slot> garbage = StorageHelper.getGarbageSlot(mod);
-            // Try throwing away cursor slot if it's garbage
-            garbage.ifPresent(slot -> mod.getSlotHandler().clickSlot(slot, 0, ContainerInput.PICKUP));
-            mod.getSlotHandler().clickSlot(Slot.UNDEFINED, 0, ContainerInput.PICKUP);
+            StorageHelper.tryStowCursorStack(mod);
         } else {
             StorageHelper.closeScreen();
         } // Just to be safe I guess
@@ -95,22 +82,7 @@ public class CraftInInventoryTask extends ResourceTask {
 
     @Override
     protected void onResourceStop(AltoClef mod, Task interruptTask) {
-        ItemStack cursorStack = StorageHelper.getItemStackInCursorSlot();
-        if (!cursorStack.isEmpty()) {
-            List<Slot> moveTo = mod.getItemStorage().getSlotsThatCanFitInPlayerInventory(cursorStack, false);
-            if (!moveTo.isEmpty()) {
-                for (Slot MoveTo : moveTo) {
-                    mod.getSlotHandler().clickSlot(MoveTo, 0, ContainerInput.PICKUP);
-                }
-            } else {
-                Optional<Slot> garbageSlot = StorageHelper.getGarbageSlot(mod);
-                if (garbageSlot.isPresent()) {
-                    mod.getSlotHandler().clickSlot(garbageSlot.get(), 0, ContainerInput.PICKUP);
-                } else {
-                    mod.getSlotHandler().clickSlot(Slot.UNDEFINED, 0, ContainerInput.PICKUP);
-                }
-            }
-        }
+        StorageHelper.tryStowCursorStack(mod);
     }
 
     // TODO check if this doesnt break something... but generally this shouldnt pickup items

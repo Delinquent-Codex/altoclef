@@ -252,8 +252,7 @@ public class TimeoutWanderTask extends Task implements ITaskRequiresGrounded {
 
     @Override
     public boolean isFinished() {
-        // Why the heck did I add this in?
-        //if (_origin == null) return true;
+        if (!hasInitializedOrigin(origin)) return false;
 
         if (Float.isInfinite(distanceToWander)) return false;
 
@@ -272,6 +271,10 @@ public class TimeoutWanderTask extends Task implements ITaskRequiresGrounded {
         } else {
             return false;
         }
+    }
+
+    static boolean hasInitializedOrigin(Vec3 origin) {
+        return origin != null;
     }
 
     @Override

@@ -46,22 +46,7 @@ public class CraftGenericManuallyTask extends Task {
             // otherwise crafting won't work
             ItemStack cursorStack = StorageHelper.getItemStackInCursorSlot();
             if (!cursorStack.isEmpty()) {
-                Optional<Slot> moveTo = mod.getItemStorage().getSlotThatCanFitInPlayerInventory(cursorStack, false);
-                if (moveTo.isPresent()) {
-                    mod.getSlotHandler().clickSlot(moveTo.get(), 0, ContainerInput.PICKUP);
-                    return null;
-                }
-                if (ItemHelper.canThrowAwayStack(mod, cursorStack)) {
-                    mod.getSlotHandler().clickSlot(Slot.UNDEFINED, 0, ContainerInput.PICKUP);
-                    return null;
-                }
-                Optional<Slot> garbage = StorageHelper.getGarbageSlot(mod);
-                // Try throwing away cursor slot if it's garbage
-                if (garbage.isPresent()) {
-                    mod.getSlotHandler().clickSlot(garbage.get(), 0, ContainerInput.PICKUP);
-                    return null;
-                }
-                mod.getSlotHandler().clickSlot(Slot.UNDEFINED, 0, ContainerInput.PICKUP);
+                StorageHelper.tryStowCursorStack(mod);
             } else {
                 StorageHelper.closeScreen();
             }
@@ -130,8 +115,7 @@ public class CraftGenericManuallyTask extends Task {
             if (toFit.isPresent()) {
                 mod.getSlotHandler().clickSlot(toFit.get(), 0, ContainerInput.PICKUP);
             } else {
-                // Eh screw it
-                mod.getSlotHandler().clickSlot(Slot.UNDEFINED, 0, ContainerInput.PICKUP);
+                StorageHelper.tryStowCursorStack(mod);
             }
         }
 

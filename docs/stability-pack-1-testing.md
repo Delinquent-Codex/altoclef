@@ -12,6 +12,21 @@ Use `@stability` at every checkpoint. The command reports the task stack, Barito
 
 Use Minecraft 26.2 and Java 25. Run each scenario in a new survival world with cheats enabled so setup can be repeated exactly. Record seed, mod set, start/end time, `latest.log`, and `@stability` at setup, intervention, and completion.
 
+The lifecycle harness can create seeded worlds, run a command, emit diagnostics every 30 seconds, unload, and repeat:
+
+```powershell
+$env:JAVA_TOOL_OPTIONS='-Daltoclef.renderRegression=true -Daltoclef.stabilityDiagnostics=true -Daltoclef.renderRegression.createWorldIfMissing=true -Daltoclef.renderRegression.freshWorldEachCycle=true -Daltoclef.renderRegression.world=Stability-Pack-1 -Daltoclef.renderRegression.seed=2602001 -Daltoclef.renderRegression.cycles=5 -Daltoclef.renderRegression.activeSeconds=120 -Daltoclef.renderRegression.command=gamer'
+.\gradlew.bat runClient
+```
+
+Deterministic scenarios may provide pipe-delimited vanilla commands before the AltoClef command starts. For example,
+this creates a capped water column around the player and then runs `@get oak_log 1`:
+
+```powershell
+$env:JAVA_TOOL_OPTIONS='-Daltoclef.renderRegression=true -Daltoclef.stabilityDiagnostics=true -Daltoclef.renderRegression.createWorldIfMissing=true -Daltoclef.renderRegression.world=Stability-Water-Trap -Daltoclef.renderRegression.seed=2602301 -Daltoclef.renderRegression.cycles=1 -Daltoclef.renderRegression.activeSeconds=120 -Daltoclef.renderRegression.setupCommands=fill^~-2^~-3^~-2^~2^~3^~2^stone|fill^~^~-2^~^~1^~^water -Daltoclef.renderRegression.command=get^oak_log^1'
+.\gradlew.bat runClient
+```
+
 | ID | Setup and action | Required observation |
 | --- | --- | --- |
 | WATER-1 | Build a 1x1 water column three blocks deep, cap it with stone, set air to 80, then start `@get oak_log 1`. | Survival owns control, chooses air or breaks a safe exit, and resumes the get task. |

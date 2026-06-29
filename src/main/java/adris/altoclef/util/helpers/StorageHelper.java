@@ -638,6 +638,29 @@ public class StorageHelper {
         return ItemStack.EMPTY;
     }
 
+    public static boolean tryStowCursorStack(AltoClef mod) {
+        ItemStack cursor = getItemStackInCursorSlot();
+        if (cursor.isEmpty()) return true;
+
+        Optional<Slot> fit = mod.getItemStorage().getSlotThatCanFitInPlayerInventory(cursor, false);
+        if (fit.isPresent()) {
+            mod.getSlotHandler().clickSlot(fit.get(), 0, ContainerInput.PICKUP);
+            return true;
+        }
+        if (ItemHelper.canThrowAwayStack(mod, cursor)) {
+            mod.getSlotHandler().clickSlot(Slot.UNDEFINED, 0, ContainerInput.PICKUP);
+            return true;
+        }
+        Optional<Slot> garbage = getGarbageSlot(mod);
+        if (garbage.isPresent()) {
+            mod.getSlotHandler().clickSlot(garbage.get(), 0, ContainerInput.PICKUP);
+            return true;
+        }
+        mod.getStabilityDiagnostics().setRecentFailure("no safe destination for cursor "
+                + cursor.getItem().getDescriptionId());
+        return false;
+    }
+
     public static int getBrewingStandFuel() {
         if (Minecraft.getInstance().player != null && Minecraft.getInstance().player.containerMenu instanceof BrewingStandMenu stand)
             return getBrewingStandFuel(stand);

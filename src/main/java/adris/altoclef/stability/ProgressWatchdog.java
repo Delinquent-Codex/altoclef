@@ -18,6 +18,7 @@ public final class ProgressWatchdog {
     private int stageTicks;
     private int childTransitions;
     private boolean actionPerformed;
+    private boolean progressObserved;
     private String failureReason = "none";
 
     public ProgressWatchdog() {
@@ -31,6 +32,7 @@ public final class ProgressWatchdog {
     }
 
     public RecoveryStage observe(Fingerprint current, boolean eligible) {
+        progressObserved = false;
         if (!eligible || current == null) {
             resetObservation();
             return stage;
@@ -38,12 +40,14 @@ public final class ProgressWatchdog {
         history.add(current);
         if (previous == null) {
             previous = current;
+            progressObserved = true;
             return stage;
         }
 
         if (meaningfulProgress(previous, current)) {
             reset();
             previous = current;
+            progressObserved = true;
             return stage;
         }
 
@@ -70,6 +74,10 @@ public final class ProgressWatchdog {
         return stage != RecoveryStage.NONE && !actionPerformed;
     }
 
+    public boolean progressObserved() {
+        return progressObserved;
+    }
+
     public void markActionPerformed() {
         actionPerformed = true;
     }
@@ -89,6 +97,7 @@ public final class ProgressWatchdog {
         stageTicks = 0;
         childTransitions = 0;
         actionPerformed = false;
+        progressObserved = false;
         failureReason = "none";
         history.clear();
     }

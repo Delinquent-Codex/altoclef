@@ -6,6 +6,8 @@ import adris.altoclef.tasks.ResourceTask;
 import adris.altoclef.tasksystem.Task;
 import adris.altoclef.util.ItemTarget;
 import adris.altoclef.util.helpers.ItemComponentHelper;
+import adris.altoclef.util.helpers.ItemHelper;
+import java.util.Arrays;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashMap;
@@ -13,6 +15,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.StringJoiner;
 import net.minecraft.core.registries.BuiltInRegistries;
+import net.minecraft.tags.ItemTags;
 import net.minecraft.world.entity.item.ItemEntity;
 import net.minecraft.world.item.BlockItem;
 import net.minecraft.world.item.Item;
@@ -58,6 +61,10 @@ public final class InventoryPolicy {
         if (ItemVer.isFood(stack) && item != Items.SPIDER_EYE) return ItemCategory.SURVIVAL_RESERVE;
         if (item == Items.GOLD_NUGGET) return ItemCategory.REQUIRED_FOR_PARENT_TASK;
         if (mod.getBehaviour().isProtected(item)) return ItemCategory.CRAFTING_INTERMEDIATE;
+        if (BuiltInRegistries.ITEM.wrapAsHolder(item).is(ItemTags.VILLAGER_PLANTABLE_SEEDS)) {
+            return ItemCategory.DISPOSABLE;
+        }
+        if (Arrays.asList(ItemHelper.SAPLINGS).contains(item)) return ItemCategory.DISPOSABLE;
         if (ItemComponentHelper.isEquippable(item) || ItemComponentHelper.isTool(stack)
                 || ItemComponentHelper.isWeapon(stack)) return ItemCategory.EQUIPMENT;
         if (item instanceof BlockItem) return ItemCategory.BUILDING_MATERIAL;

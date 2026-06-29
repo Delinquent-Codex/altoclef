@@ -604,9 +604,9 @@ public class AltoClef implements ClientModInitializer {
                 .anyMatch(stack -> !stack.isEmpty() && ItemVer.isFood(stack) && stack.getItem() != Items.SPIDER_EYE);
         int nearbyHostiles = (int) getEntityTracker().getHostiles().stream()
                 .filter(hostile -> hostile.closerThan(getPlayer(), 10)).count();
-        BlockPos head = getPlayer().blockPosition().above();
-        boolean solidOverhead = !getWorld().getBlockState(head).isAir()
-                && getWorld().getBlockState(head).getFluidState().isEmpty();
+        BlockPos overhead = getPlayer().blockPosition().above(2);
+        boolean solidOverhead = !getWorld().getBlockState(overhead).isAir()
+                && getWorld().getBlockState(overhead).getFluidState().isEmpty();
         boolean hasWeapon = getItemStorage().hasItem(
                 Items.WOODEN_SWORD, Items.STONE_SWORD, Items.IRON_SWORD, Items.GOLDEN_SWORD, Items.DIAMOND_SWORD,
                 Items.NETHERITE_SWORD, Items.WOODEN_AXE, Items.STONE_AXE, Items.IRON_AXE, Items.GOLDEN_AXE,
@@ -626,7 +626,7 @@ public class AltoClef implements ClientModInitializer {
         ProgressWatchdog.Fingerprint fingerprint = eligible ? createProgressFingerprint() : null;
         ProgressWatchdog.RecoveryStage stage = progressWatchdog.observe(fingerprint, eligible);
         stabilityDiagnostics.setRecoveryStage(stage == ProgressWatchdog.RecoveryStage.NONE ? null : stage.name());
-        if (stage == ProgressWatchdog.RecoveryStage.NONE) {
+        if (progressWatchdog.progressObserved()) {
             stabilityDiagnostics.markProgress();
         }
     }

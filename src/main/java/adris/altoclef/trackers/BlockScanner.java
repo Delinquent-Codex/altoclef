@@ -527,7 +527,12 @@ public class BlockScanner {
         if (generation != scanGeneration) {
             return;
         }
-        if (publish && mod.getWorld() == world) {
+        if (mod.getWorld() != world) {
+            scanThread = null;
+            scanning = false;
+            return;
+        }
+        if (publish) {
             scannedBlocks = workingScannedBlocks;
             scannedChunks = workingScannedChunks;
         }
