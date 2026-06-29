@@ -23,7 +23,7 @@ Deterministic scenarios may provide pipe-delimited vanilla commands before the A
 this creates a capped water column around the player and then runs `@get oak_log 1`:
 
 ```powershell
-$env:JAVA_TOOL_OPTIONS='-Daltoclef.renderRegression=true -Daltoclef.stabilityDiagnostics=true -Daltoclef.renderRegression.createWorldIfMissing=true -Daltoclef.renderRegression.world=Stability-Water-Trap -Daltoclef.renderRegression.seed=2602301 -Daltoclef.renderRegression.cycles=1 -Daltoclef.renderRegression.activeSeconds=120 -Daltoclef.renderRegression.setupCommands=fill^~-2^~-3^~-2^~2^~3^~2^stone|fill^~^~-2^~^~1^~^water -Daltoclef.renderRegression.command=get^oak_log^1'
+$env:JAVA_TOOL_OPTIONS='-Daltoclef.renderRegression=true -Daltoclef.stabilityDiagnostics=true -Daltoclef.renderRegression.createWorldIfMissing=true -Daltoclef.renderRegression.world=Stability-Water-Trap -Daltoclef.renderRegression.seed=2602301 -Daltoclef.renderRegression.cycles=1 -Daltoclef.renderRegression.activeSeconds=120 -Daltoclef.renderRegression.setupCommands=fill^~-2^~-3^~-2^~2^~3^~2^stone|fill^~^~-2^~^~^~1^~^water -Daltoclef.renderRegression.command=get^oak_log^1'
 .\gradlew.bat runClient
 ```
 
