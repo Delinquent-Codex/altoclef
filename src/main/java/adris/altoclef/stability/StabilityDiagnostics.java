@@ -24,6 +24,8 @@ public final class StabilityDiagnostics {
     private final boolean recordingEnabled = Boolean.getBoolean("altoclef.stabilityDiagnostics");
     private final BoundedHistory<DiagnosticSample> samples = new BoundedHistory<>(HISTORY_CAPACITY);
     private final BoundedHistory<Long> pathCalculations = new BoundedHistory<>(HISTORY_CAPACITY);
+    private final RollingTiming tickTimings = new RollingTiming(600);
+    private final RollingTiming closeScanTimings = new RollingTiming(600);
     private long tick;
     private long lastTickNanos;
     private long lastProgressNanos = System.nanoTime();
@@ -47,6 +49,8 @@ public final class StabilityDiagnostics {
 
     public void tick(long tickNanos) {
         lastTickNanos = tickNanos;
+        tickTimings.add(tickNanos);
+        closeScanTimings.add(mod.getBlockScanner().getLastCloseScanNanos());
         tick++;
         String chain = taskChain();
         if (!chain.equals(lastTaskChain)) {
@@ -90,6 +94,8 @@ public final class StabilityDiagnostics {
     public void resetWorldState() {
         samples.clear();
         pathCalculations.clear();
+        tickTimings.clear();
+        closeScanTimings.clear();
         lastTaskChain = "idle";
         recoveryStage = "none";
         survivalOverride = "none";
@@ -101,6 +107,8 @@ public final class StabilityDiagnostics {
 
     public Snapshot snapshot() {
         DiagnosticSample sample = captureSample();
+        RollingTiming.Stats tickStats = tickTimings.stats();
+        RollingTiming.Stats scanStats = closeScanTimings.stats();
         return new Snapshot(
                 recordingEnabled,
                 sample.taskChain(),
@@ -119,6 +127,11 @@ public final class StabilityDiagnostics {
                 mod.getBlockScanner().getLastCloseScanNanos() / 1_000_000.0,
                 mod.getBlockScanner().getLastAsyncScanNanos() / 1_000_000.0,
                 mod.getBlockScanner().getLastAsyncChunksVisited(),
+                mod.getBlockScanner().getLastClosePositionsVisited(),
+                tickStats.medianNanos() / 1_000_000.0,
+                tickStats.p95Nanos() / 1_000_000.0,
+                scanStats.medianNanos() / 1_000_000.0,
+                scanStats.p95Nanos() / 1_000_000.0,
                 samples.size());
     }
 
@@ -209,15 +222,17 @@ public final class StabilityDiagnostics {
                            String inventoryReservations, String survivalOverride, String recentFailure,
                            int repeatedTransitions, int stuckActivations, double pathCalculationsPerSecond,
                            double tickMillis, double closeScanMillis, double asyncScanMillis,
-                           int asyncChunks, int recordedSamples) {
+                           int asyncChunks, int closePositions, double tickMedianMillis, double tickP95Millis,
+                           double scanMedianMillis, double scanP95Millis, int recordedSamples) {
         public List<String> conciseLines() {
             return List.of(
                     "task=" + taskChain + " | process=" + baritoneProcess + " | goal=" + goal + " | path=" + pathStatus,
                     "progress=" + millisSinceProgress + "ms | recovery=" + recoveryStage + " | survival=" + survivalOverride
                             + " | reservations=" + inventoryReservations + " | failure=" + recentFailure,
-                    String.format("transitions=%d | stuck=%d | pathCalc=%.2f/s | tick=%.2fms | scan=%.2fms/%.2fms(%d chunks) | recorder=%s(%d/%d)",
+                    String.format("transitions=%d | stuck=%d | pathCalc=%.2f/s | tick=%.2fms med/p95=%.2f/%.2f | scan=%.2fms med/p95=%.2f/%.2f (%d cells, %.2fms/%d chunks) | recorder=%s(%d/%d)",
                             repeatedTransitions, stuckActivations, pathCalculationsPerSecond, tickMillis,
-                            closeScanMillis, asyncScanMillis, asyncChunks, recordingEnabled ? "on" : "off",
+                            tickMedianMillis, tickP95Millis, closeScanMillis, scanMedianMillis, scanP95Millis,
+                            closePositions, asyncScanMillis, asyncChunks, recordingEnabled ? "on" : "off",
                             recordedSamples, HISTORY_CAPACITY));
         }
     }

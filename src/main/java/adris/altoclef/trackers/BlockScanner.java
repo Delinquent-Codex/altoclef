@@ -10,6 +10,7 @@ import adris.altoclef.util.Dimension;
 import adris.altoclef.util.helpers.BaritoneHelper;
 import adris.altoclef.util.helpers.WorldHelper;
 import adris.altoclef.util.time.TimerGame;
+import adris.altoclef.stability.OperationBudget;
 import java.util.*;
 import java.util.function.Predicate;
 import net.minecraft.client.Minecraft;
@@ -27,6 +28,14 @@ public class BlockScanner {
     private static final boolean LOG = false;
     private static final int RESCAN_TICK_DELAY = 4 * 20;
     private static final int CACHED_POSITIONS_PER_BLOCK = 40;
+    private static final int CLOSE_RADIUS = 8;
+    private static final int CLOSE_HEIGHT = 16;
+    private static final int CLOSE_DIAMETER = CLOSE_RADIUS * 2 + 1;
+    private static final int CLOSE_SCAN_SIZE = CLOSE_DIAMETER * CLOSE_DIAMETER * CLOSE_HEIGHT;
+    private static final int CLOSE_SCAN_BUDGET = 1024;
+    private static final int ASYNC_SCAN_CHUNK_BUDGET = 64;
+    private static final int ASYNC_SCAN_VISIT_BUDGET = 512;
+    private static final int ASYNC_SCAN_RADIUS = 12;
 
 
     private final AltoClef mod;
@@ -46,6 +55,12 @@ public class BlockScanner {
     private volatile long lastCloseScanNanos;
     private volatile long lastAsyncScanNanos;
     private volatile int lastAsyncChunksVisited;
+    private volatile int lastClosePositionsVisited;
+    private HashMap<Block, HashSet<BlockPos>> closePublishedBlocks = new HashMap<>();
+    private HashMap<Block, HashSet<BlockPos>> closeWorkingBlocks = new HashMap<>();
+    private BlockPos closeScanOrigin;
+    private Level closeScanWorld;
+    private int closeScanCursor;
     private Thread scanThread;
 
 
@@ -70,6 +85,7 @@ public class BlockScanner {
 
             trackedBlocks.put(block, set);
         }
+        closePublishedBlocks.computeIfAbsent(block, ignored -> new HashSet<>()).add(pos);
     }
 
 
@@ -267,6 +283,11 @@ public class BlockScanner {
         scannedBlocks.clear();
         scannedChunks.clear();
         cachedScannedBlocks.clear();
+        closePublishedBlocks.clear();
+        closeWorkingBlocks.clear();
+        closeScanOrigin = null;
+        closeScanWorld = null;
+        closeScanCursor = 0;
         rescanTimer.forceElapse();
         blacklist.clear();
     }
@@ -310,7 +331,7 @@ public class BlockScanner {
             boolean completed = false;
             try {
                 completed = rescan(world, playerChunkPos, playerPos, workingScannedBlocks, workingScannedChunks,
-                        Integer.MAX_VALUE, Integer.MAX_VALUE, generation);
+                        ASYNC_SCAN_CHUNK_BUDGET, ASYNC_SCAN_RADIUS, generation);
             } catch (Exception e) {
                 if (generation == scanGeneration) {
                     e.printStackTrace();
@@ -325,48 +346,44 @@ public class BlockScanner {
     }
 
     private void scanCloseBlocks() {
+        trackedBlocks.clear();
         for (Map.Entry<Block, HashSet<BlockPos>> entry : cachedScannedBlocks.entrySet()) {
-            if (!trackedBlocks.containsKey(entry.getKey())) {
-                trackedBlocks.put(entry.getKey(), new HashSet<>());
-            }
-            trackedBlocks.get(entry.getKey()).clear();
-
-            trackedBlocks.get(entry.getKey()).addAll(entry.getValue());
+            trackedBlocks.computeIfAbsent(entry.getKey(), ignored -> new HashSet<>()).addAll(entry.getValue());
+        }
+        for (Map.Entry<Block, HashSet<BlockPos>> entry : closePublishedBlocks.entrySet()) {
+            trackedBlocks.computeIfAbsent(entry.getKey(), ignored -> new HashSet<>()).addAll(entry.getValue());
         }
 
-        HashMap<Block, HashSet<BlockPos>> map = new HashMap<>();
-
-        BlockPos pos = mod.getPlayer().blockPosition();
+        BlockPos origin = mod.getPlayer().blockPosition();
         Level world = mod.getPlayer().level();
-
-        for (int x = pos.getX() - 8; x <= pos.getX() + 8; x++) {
-            for (int y = pos.getY() - 8; y < pos.getY() + 8; y++) {
-                for (int z = pos.getZ() - 8; z <= pos.getZ() + 8; z++) {
-                    BlockPos p = new BlockPos(x, y, z);
-                    BlockState state = world.getBlockState(p);
-                    if (world.getBlockState(p).isAir()) continue;
-
-                    Block block = state.getBlock();
-
-                    if (map.containsKey(block)) {
-                        map.get(block).add(p);
-                    } else {
-                        HashSet<BlockPos> set = new HashSet<>();
-                        set.add(p);
-                        map.put(block, set);
-                    }
-                }
-            }
+        if (closeScanWorld != world || closeScanOrigin == null || !closeScanOrigin.equals(origin)) {
+            closeScanWorld = world;
+            closeScanOrigin = origin;
+            closeWorkingBlocks = new HashMap<>();
+            closeScanCursor = 0;
         }
 
-        for (Map.Entry<Block, HashSet<BlockPos>> entry : map.entrySet()) {
-            getFirstFewPositions(entry.getValue(),mod.getPlayer().position());
-
-            if (!trackedBlocks.containsKey(entry.getKey())) {
-                trackedBlocks.put(entry.getKey(), new HashSet<>());
+        OperationBudget budget = new OperationBudget(CLOSE_SCAN_BUDGET);
+        while (closeScanCursor < CLOSE_SCAN_SIZE && budget.tryAcquire()) {
+            int index = closeScanCursor++;
+            int x = index % CLOSE_DIAMETER;
+            index /= CLOSE_DIAMETER;
+            int z = index % CLOSE_DIAMETER;
+            int y = index / CLOSE_DIAMETER;
+            BlockPos position = origin.offset(x - CLOSE_RADIUS, y - CLOSE_RADIUS, z - CLOSE_RADIUS);
+            BlockState state = world.getBlockState(position);
+            if (!state.isAir()) {
+                closeWorkingBlocks.computeIfAbsent(state.getBlock(), ignored -> new HashSet<>()).add(position);
             }
-
-            trackedBlocks.get(entry.getKey()).addAll(entry.getValue());
+        }
+        lastClosePositionsVisited = budget.used();
+        if (closeScanCursor >= CLOSE_SCAN_SIZE) {
+            closePublishedBlocks = closeWorkingBlocks;
+            closeWorkingBlocks = new HashMap<>();
+            closeScanCursor = 0;
+            for (Map.Entry<Block, HashSet<BlockPos>> entry : closePublishedBlocks.entrySet()) {
+                trackedBlocks.computeIfAbsent(entry.getKey(), ignored -> new HashSet<>()).addAll(entry.getValue());
+            }
         }
     }
 
@@ -381,31 +398,34 @@ public class BlockScanner {
         Queue<Node> queue = new ArrayDeque<>();
         queue.add(new Node(playerChunkPos, 0));
 
-        while (!queue.isEmpty() && visited.size() < maxCount && isScanCurrent(world, generation)) {
+        int scannedCount = 0;
+        while (!queue.isEmpty() && scannedCount < maxCount && visited.size() < ASYNC_SCAN_VISIT_BUDGET
+                && isScanCurrent(world, generation)) {
             Node node = queue.poll();
 
             if (node.distance > cutOffRadius || visited.contains(node.pos) || !world.getChunkSource().hasChunk(node.pos.x(), node.pos.z()))
                 continue;
 
+            visited.add(node.pos);
+            queue.add(new Node(new ChunkPos(node.pos.x() + 1, node.pos.z()), node.distance + 1));
+            queue.add(new Node(new ChunkPos(node.pos.x() - 1, node.pos.z()), node.distance + 1));
+            queue.add(new Node(new ChunkPos(node.pos.x(), node.pos.z() + 1), node.distance + 1));
+            queue.add(new Node(new ChunkPos(node.pos.x(), node.pos.z() - 1), node.distance + 1));
+
             boolean isPriorityChunk = getChunkDist(node.pos, playerChunkPos) <= 2;
             if (!isPriorityChunk && workingScannedChunks.containsKey(node.pos) && world.getGameTime() - workingScannedChunks.get(node.pos) < RESCAN_TICK_DELAY)
                 continue;
 
-            visited.add(node.pos);
             if (!scanChunk(world, node.pos, playerChunkPos, workingScannedBlocks, workingScannedChunks, generation)) {
                 return false;
             }
-
-            queue.add(new Node(new ChunkPos(node.pos.x() + 1, node.pos.z() + 1), node.distance + 1));
-            queue.add(new Node(new ChunkPos(node.pos.x() - 1, node.pos.z() + 1), node.distance + 1));
-            queue.add(new Node(new ChunkPos(node.pos.x() - 1, node.pos.z() - 1), node.distance + 1));
-            queue.add(new Node(new ChunkPos(node.pos.x() + 1, node.pos.z() - 1), node.distance + 1));
+            scannedCount++;
         }
         if (!isScanCurrent(world, generation)) {
             return false;
         }
 
-        lastAsyncChunksVisited = visited.size();
+        lastAsyncChunksVisited = scannedCount;
         lastAsyncScanNanos = System.nanoTime() - scanStart;
 
         for (Iterator<ChunkPos> iterator = workingScannedChunks.keySet().iterator(); iterator.hasNext(); ) {
@@ -534,6 +554,10 @@ public class BlockScanner {
 
     public int getLastAsyncChunksVisited() {
         return lastAsyncChunksVisited;
+    }
+
+    public int getLastClosePositionsVisited() {
+        return lastClosePositionsVisited;
     }
 
     public boolean isScanning() {
