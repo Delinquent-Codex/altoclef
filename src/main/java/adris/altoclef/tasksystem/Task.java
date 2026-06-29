@@ -117,6 +117,14 @@ public abstract class Task {
         debugState = state;
     }
 
+    public final String getDebugState() {
+        return debugState;
+    }
+
+    public final Task getSubTask() {
+        return sub;
+    }
+
     // Virtual
     public boolean isFinished() {
         return false;

@@ -18,6 +18,7 @@ import adris.altoclef.multiversion.DrawContextWrapper;
 import adris.altoclef.multiversion.versionedfields.Blocks;
 import adris.altoclef.tasksystem.Task;
 import adris.altoclef.tasksystem.TaskRunner;
+import adris.altoclef.stability.StabilityDiagnostics;
 import adris.altoclef.trackers.*;
 import adris.altoclef.trackers.storage.ContainerSubTracker;
 import adris.altoclef.trackers.storage.ItemStorageTracker;
@@ -31,6 +32,7 @@ import baritone.Baritone;
 import baritone.altoclef.AltoClefSettings;
 import baritone.api.BaritoneAPI;
 import baritone.api.event.events.WorldEvent;
+import baritone.api.event.events.PathEvent;
 import baritone.api.event.events.type.EventState;
 import baritone.api.event.listener.AbstractGameEventListener;
 import net.fabricmc.api.ClientModInitializer;
@@ -88,6 +90,7 @@ public class AltoClef implements ClientModInitializer {
     private Task storedTask;
     private boolean runIdleCommandWhenReady;
     private RenderLifecycleRegressionHarness renderRegressionHarness;
+    private StabilityDiagnostics stabilityDiagnostics;
 
     private static AltoClef instance;
     private boolean loadInitialized;
@@ -150,6 +153,7 @@ public class AltoClef implements ClientModInitializer {
         chunkTracker = new SimpleChunkTracker(this);
         miscBlockTracker = new MiscBlockTracker(this);
         craftingRecipeTracker = new CraftingRecipeTracker(trackerManager);
+        stabilityDiagnostics = new StabilityDiagnostics(this);
 
         // Renderers
         commandStatusOverlay = new CommandStatusOverlay();
@@ -196,7 +200,9 @@ public class AltoClef implements ClientModInitializer {
         EventBus.subscribe(ClientTickEvent.class, evt -> {
             long nanos = System.nanoTime();
             onClientTick();
-            altoClefTickChart.pushTickNanos(System.nanoTime()-nanos);
+            long tickNanos = System.nanoTime() - nanos;
+            stabilityDiagnostics.tick(tickNanos);
+            altoClefTickChart.pushTickNanos(tickNanos);
         });
 
         // Render
@@ -215,6 +221,11 @@ public class AltoClef implements ClientModInitializer {
                 if (event.getState() == EventState.PRE && event.getWorld() == null) {
                     onWorldUnload();
                 }
+            }
+
+            @Override
+            public void onPathEvent(PathEvent event) {
+                stabilityDiagnostics.onPathEvent(event);
             }
         });
         renderRegressionHarness = RenderLifecycleRegressionHarness.createIfEnabled(this);
@@ -283,6 +294,9 @@ public class AltoClef implements ClientModInitializer {
         runIdleCommandWhenReady = false;
         if (blockScanner != null) {
             blockScanner.reset();
+        }
+        if (stabilityDiagnostics != null) {
+            stabilityDiagnostics.resetWorldState();
         }
         stopTasks();
     }
@@ -537,6 +551,10 @@ public class AltoClef implements ClientModInitializer {
      */
     public InputControls getInputControls() {
         return inputControls;
+    }
+
+    public StabilityDiagnostics getStabilityDiagnostics() {
+        return stabilityDiagnostics;
     }
 
     /**

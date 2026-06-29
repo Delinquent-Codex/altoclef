@@ -24,6 +24,7 @@ public class AltoClefCommands {
                 new HeroCommand(),
                 new CoordsCommand(),
                 new StatusCommand(),
+                new StabilityCommand(),
                 new InventoryCommand(),
                 new LocateStructureCommand(),
                 new StopCommand(),

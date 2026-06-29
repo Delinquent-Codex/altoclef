@@ -43,6 +43,9 @@ public class BlockScanner {
 
     private boolean scanning = false;
     private volatile long scanGeneration;
+    private volatile long lastCloseScanNanos;
+    private volatile long lastAsyncScanNanos;
+    private volatile int lastAsyncChunksVisited;
     private Thread scanThread;
 
 
@@ -263,7 +266,9 @@ public class BlockScanner {
     public void tick() {
         if (mod.getWorld() == null || mod.getPlayer() == null) return;
         //be maximally aware of the closest blocks around you
+        long closeScanStart = System.nanoTime();
         scanCloseBlocks();
+        lastCloseScanNanos = System.nanoTime() - closeScanStart;
         if (!rescanTimer.elapsed() || scanning) return;
 
         if (scanDimension != WorldHelper.getCurrentDimension() || mod.getWorld() != scanWorld) {
@@ -362,6 +367,7 @@ public class BlockScanner {
                            HashMap<ChunkPos, Long> workingScannedChunks,
                            int maxCount, int cutOffRadius, long generation) {
         long ms = System.currentTimeMillis();
+        long scanStart = System.nanoTime();
 
         HashSet<ChunkPos> visited = new HashSet<>();
         Queue<Node> queue = new ArrayDeque<>();
@@ -390,6 +396,9 @@ public class BlockScanner {
         if (!isScanCurrent(world, generation)) {
             return false;
         }
+
+        lastAsyncChunksVisited = visited.size();
+        lastAsyncScanNanos = System.nanoTime() - scanStart;
 
         for (Iterator<ChunkPos> iterator = workingScannedChunks.keySet().iterator(); iterator.hasNext(); ) {
             ChunkPos pos = iterator.next();
@@ -505,6 +514,22 @@ public class BlockScanner {
             copy.put(entry.getKey(), new HashSet<>(entry.getValue()));
         }
         return copy;
+    }
+
+    public long getLastCloseScanNanos() {
+        return lastCloseScanNanos;
+    }
+
+    public long getLastAsyncScanNanos() {
+        return lastAsyncScanNanos;
+    }
+
+    public int getLastAsyncChunksVisited() {
+        return lastAsyncChunksVisited;
+    }
+
+    public boolean isScanning() {
+        return scanning;
     }
 
     private record Node(ChunkPos pos, int distance) {
