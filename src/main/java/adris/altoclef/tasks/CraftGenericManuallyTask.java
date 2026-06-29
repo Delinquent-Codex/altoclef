@@ -11,6 +11,7 @@ import adris.altoclef.util.helpers.StorageHelper;
 import adris.altoclef.util.slots.CraftingTableSlot;
 import adris.altoclef.util.slots.PlayerSlot;
 import adris.altoclef.util.slots.Slot;
+import adris.altoclef.stability.CraftingBatchPlanner;
 import java.util.Optional;
 import net.minecraft.world.inventory.ContainerInput;
 import net.minecraft.world.item.ItemStack;
@@ -64,7 +65,7 @@ public class CraftGenericManuallyTask extends Task {
             } else {
                 StorageHelper.closeScreen();
             }
-            // Just to be safe
+            return null;
         }
 
         Slot outputSlot = bigCrafting ? CraftingTableSlot.OUTPUT_SLOT : PlayerSlot.CRAFT_OUTPUT_SLOT;
@@ -73,7 +74,8 @@ public class CraftGenericManuallyTask extends Task {
         // We need 9 sticks
         // plank recipe results in 4 sticks
         // this means 3 planks per slot
-        int requiredPerSlot = (int) Math.ceil((double) target.getTargetCount() / target.getRecipe().outputCount());
+        int requiredPerSlot = CraftingBatchPlanner.requiredPerIngredientSlot(target.getTargetCount(),
+                mod.getItemStorage().getItemCount(target.getOutputItem()), target.getRecipe().outputCount());
 
         // For each slot in table
         for (int craftSlot = 0; craftSlot < target.getRecipe().getSlotCount(); ++craftSlot) {
@@ -99,7 +101,7 @@ public class CraftGenericManuallyTask extends Task {
                 if (!isSatisfied) {
                     // We have items that satisfy, but we CAN NOT fill in the current slot!
                     // In that case, just grab from the output.
-                    if (!mod.getItemStorage().hasItemInventoryOnly(present.getItem())) {
+                    if (!mod.getItemStorage().hasItemInventoryOnly(toFill.getMatches())) {
                         if (!StorageHelper.getItemStackInSlot(outputSlot).isEmpty()) {
                             setDebugState("NO MORE to fit: grabbing from output.");
                             return new ReceiveCraftingOutputSlotTask(outputSlot, target.getTargetCount());

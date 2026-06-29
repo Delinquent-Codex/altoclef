@@ -80,6 +80,11 @@ public final class InventoryPolicy {
         suppressedDrops.record(itemKey(stack.getItem()), toPosition(position), mod.getWorld().getGameTime());
     }
 
+    public void reserveCraftingIntermediate(Item item, int count) {
+        reserve(item, count, ItemCategory.CRAFTING_INTERMEDIATE);
+        mod.getStabilityDiagnostics().setInventoryReservations(describeReservations());
+    }
+
     public boolean shouldIgnorePickup(ItemEntity entity) {
         if (mod.getWorld() == null || entity == null || entity.getItem().isEmpty()) return false;
         Item item = entity.getItem().getItem();

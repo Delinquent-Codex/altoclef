@@ -85,6 +85,7 @@ public class CraftGenericWithRecipeBooksTask extends Task implements ITaskUsesCr
                 // Close the screen
                 StorageHelper.closeScreen();
             }
+            return null;
         }
 
         // Determine the output slot based on whether the big crafting UI is open
