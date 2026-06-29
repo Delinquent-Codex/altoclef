@@ -13,26 +13,30 @@ import adris.altoclef.util.helpers.ItemHelper;
 import adris.altoclef.util.helpers.StorageHelper;
 import adris.altoclef.util.slots.SmokerSlot;
 import adris.altoclef.util.time.TimerGame;
-import net.minecraft.entity.Entity;
-import net.minecraft.entity.ItemEntity;
-import net.minecraft.entity.LivingEntity;
-import net.minecraft.entity.passive.*;
-import net.minecraft.item.Item;
-import net.minecraft.item.ItemStack;
-import net.minecraft.screen.ScreenHandler;
-import net.minecraft.screen.SmokerScreenHandler;
-
+import net.minecraft.world.entity.animal.*;
+import net.minecraft.world.entity.Entity;
+import net.minecraft.world.entity.LivingEntity;
+import net.minecraft.world.entity.animal.chicken.Chicken;
+import net.minecraft.world.entity.animal.cow.Cow;
+import net.minecraft.world.entity.animal.pig.Pig;
+import net.minecraft.world.entity.animal.rabbit.Rabbit;
+import net.minecraft.world.entity.animal.sheep.Sheep;
+import net.minecraft.world.entity.item.ItemEntity;
+import net.minecraft.world.inventory.AbstractContainerMenu;
+import net.minecraft.world.inventory.SmokerMenu;
+import net.minecraft.world.item.Item;
+import net.minecraft.world.item.ItemStack;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.function.Predicate;
 
 public class CollectMeatTask extends Task {
     public static final CookableFoodTarget[] COOKABLE_FOODS = new CookableFoodTarget[]{
-            new CookableFoodTarget("beef", CowEntity.class),
-            new CookableFoodTarget("porkchop", PigEntity.class),
-            new CookableFoodTarget("chicken", ChickenEntity.class),
-            new CookableFoodTarget("mutton", SheepEntity.class),
-            new CookableFoodTarget("rabbit", RabbitEntity.class)
+            new CookableFoodTarget("beef", Cow.class),
+            new CookableFoodTarget("porkchop", Pig.class),
+            new CookableFoodTarget("chicken", Chicken.class),
+            new CookableFoodTarget("mutton", Sheep.class),
+            new CookableFoodTarget("rabbit", Rabbit.class)
     };
     private final double unitsNeeded;
     private final TimerGame checkNewOptionsTimer = new TimerGame(10);
@@ -62,8 +66,8 @@ public class CollectMeatTask extends Task {
             potentialFood += getFoodPotential(food);
         }
         // Check smelting
-        ScreenHandler screen = mod.getPlayer().currentScreenHandler;
-        if (screen instanceof SmokerScreenHandler) {
+        AbstractContainerMenu screen = mod.getPlayer().containerMenu;
+        if (screen instanceof SmokerMenu) {
             potentialFood += getFoodPotential(StorageHelper.getItemStackInSlot(SmokerSlot.INPUT_SLOT_MATERIALS));
             potentialFood += getFoodPotential(StorageHelper.getItemStackInSlot(SmokerSlot.OUTPUT_SLOT));
         }
@@ -129,10 +133,10 @@ public class CollectMeatTask extends Task {
             Item bestRawFood = null;
             for (CookableFoodTarget cookable : COOKABLE_FOODS) {
                 if (!mod.getEntityTracker().entityFound(cookable.mobToKill)) continue;
-                Optional<Entity> nearest = mod.getEntityTracker().getClosestEntity(mod.getPlayer().getPos(), cookable.mobToKill);
+                Optional<Entity> nearest = mod.getEntityTracker().getClosestEntity(mod.getPlayer().position(), cookable.mobToKill);
                 if (nearest.isEmpty()) continue; // ?? This crashed once?
                 int hungerPerformance = cookable.getCookedUnits();
-                double sqDistance = nearest.get().squaredDistanceTo(mod.getPlayer());
+                double sqDistance = nearest.get().distanceToSqr(mod.getPlayer());
                 double score = (double) 100 * hungerPerformance / (sqDistance);
                 if (score > bestScore) {
                     bestScore = score;
@@ -141,7 +145,7 @@ public class CollectMeatTask extends Task {
                 }
             }
             if (bestEntity != null) {
-                setDebugState("Killing " + bestEntity.getType().getTranslationKey());
+                setDebugState("Killing " + bestEntity.getType().getDescriptionId());
                 Predicate<Entity> notBaby = entity -> entity instanceof LivingEntity livingEntity && !livingEntity.isBaby();
                 currentResourceTask = killTaskOrNull(bestEntity, notBaby, bestRawFood);
                 return currentResourceTask;
@@ -169,10 +173,10 @@ public class CollectMeatTask extends Task {
     private Task pickupTaskOrNull(AltoClef mod, Item itemToGrab, double maxRange) {
         Optional<ItemEntity> nearestDrop = Optional.empty();
         if (mod.getEntityTracker().itemDropped(itemToGrab)) {
-            nearestDrop = mod.getEntityTracker().getClosestItemDrop(mod.getPlayer().getPos(), itemToGrab);
+            nearestDrop = mod.getEntityTracker().getClosestItemDrop(mod.getPlayer().position(), itemToGrab);
         }
         if (nearestDrop.isPresent()) {
-            if (nearestDrop.get().isInRange(mod.getPlayer(), maxRange)) {
+            if (nearestDrop.get().closerThan(mod.getPlayer(), maxRange)) {
                 return new PickupDroppedItemTask(new ItemTarget(itemToGrab), true);
             }
             //return new GetToBlockTask(nearestDrop.getBlockPos(), false);

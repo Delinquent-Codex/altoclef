@@ -2,7 +2,7 @@ package adris.altoclef.util.baritone;
 
 import baritone.api.pathing.goals.Goal;
 import baritone.api.pathing.goals.GoalXZ;
-import net.minecraft.util.math.ChunkPos;
+import net.minecraft.world.level.ChunkPos;
 
 public class GoalChunk implements Goal {
 
@@ -14,13 +14,13 @@ public class GoalChunk implements Goal {
 
     @Override
     public boolean isInGoal(int x, int y, int z) {
-        return pos.getStartX() <= x && x <= pos.getEndX() &&
-                pos.getStartZ() <= z && z <= pos.getEndZ();
+        return pos.getMinBlockX() <= x && x <= pos.getMaxBlockX() &&
+                pos.getMinBlockZ() <= z && z <= pos.getMaxBlockZ();
     }
 
     @Override
     public double heuristic(int x, int y, int z) {
-        double cx = (pos.getStartX() + pos.getEndX()) / 2.0, cz = (pos.getStartZ() + pos.getEndZ()) / 2.0;
+        double cx = (pos.getMinBlockX() + pos.getMaxBlockX()) / 2.0, cz = (pos.getMinBlockZ() + pos.getMaxBlockZ()) / 2.0;
         return GoalXZ.calculate(cx - x, cz - z);
     }
 }

@@ -10,9 +10,8 @@ import adris.altoclef.tasks.container.StoreInStashTask;
 import adris.altoclef.util.BlockRange;
 import adris.altoclef.util.ItemTarget;
 import adris.altoclef.util.helpers.WorldHelper;
-import net.minecraft.util.math.BlockPos;
-
 import java.util.List;
+import net.minecraft.core.BlockPos;
 
 public class StashCommand extends Command {
     public StashCommand() throws CommandException {
@@ -41,7 +40,7 @@ public class StashCommand extends Command {
                 parser.get(Integer.class)
         );
 
-        List<ItemTarget> itemList = parser.get(List.class);
+        List<ItemTarget> itemList = parser.getList(ItemTarget.class);
 
         ItemTarget[] items;
         if (itemList == null) {

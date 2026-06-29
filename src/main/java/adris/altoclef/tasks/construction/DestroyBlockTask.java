@@ -16,14 +16,20 @@ import baritone.api.pathing.goals.GoalBlock;
 import baritone.api.pathing.goals.GoalNear;
 import baritone.api.utils.Rotation;
 import baritone.api.utils.input.Input;
-import net.minecraft.block.*;
+import net.minecraft.world.level.block.*;
+import net.minecraft.world.level.block.state.*;
+import net.minecraft.core.BlockPos;
+import net.minecraft.world.entity.Entity;
+import net.minecraft.world.entity.monster.illager.Pillager;
+import net.minecraft.world.inventory.ContainerInput;
+import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.level.block.Block;
+import net.minecraft.world.level.block.DoorBlock;
+import net.minecraft.world.level.block.FenceBlock;
+import net.minecraft.world.level.block.FenceGateBlock;
+import net.minecraft.world.level.block.FlowerBlock;
+import net.minecraft.world.level.block.state.BlockState;
 import adris.altoclef.multiversion.versionedfields.Blocks;
-import net.minecraft.entity.Entity;
-import net.minecraft.entity.mob.PillagerEntity;
-import net.minecraft.item.ItemStack;
-import net.minecraft.screen.slot.SlotActionType;
-import net.minecraft.util.math.BlockPos;
-
 import java.util.Optional;
 
 /**
@@ -115,9 +121,9 @@ public class DestroyBlockTask extends Task implements ITaskRequiresGrounded {
      * @return The BlockPos of the stuck block, or null if none found.
      */
     private BlockPos stuckInBlock(AltoClef mod) {
-        BlockPos playerPos = mod.getPlayer().getBlockPos();
+        BlockPos playerPos = mod.getPlayer().blockPosition();
         BlockPos[] toCheck = generateSides(playerPos);
-        BlockPos[] toCheckHigh = generateSides(playerPos.up());
+        BlockPos[] toCheckHigh = generateSides(playerPos.above());
 
         // Check if player position is annoying
         if (isAnnoying(mod, playerPos)) {
@@ -126,9 +132,9 @@ public class DestroyBlockTask extends Task implements ITaskRequiresGrounded {
         }
 
         // Check if player position (up) is annoying
-        if (isAnnoying(mod, playerPos.up())) {
-            Debug.logInternal("Player position (up) is annoying: " + playerPos.up());
-            return playerPos.up();
+        if (isAnnoying(mod, playerPos.above())) {
+            Debug.logInternal("Player position (up) is annoying: " + playerPos.above());
+            return playerPos.above();
         }
 
         // Check each side block position
@@ -210,13 +216,13 @@ public class DestroyBlockTask extends Task implements ITaskRequiresGrounded {
 
             // If there is a slot where the item can fit, click on that slot to move the item.
             moveTo.ifPresent(slot -> {
-                mod.getSlotHandler().clickSlot(slot, 0, SlotActionType.PICKUP);
+                mod.getSlotHandler().clickSlot(slot, 0, ContainerInput.PICKUP);
                 Debug.logInternal("Clicked slot: " + slot);
             });
 
             // If the item can be thrown away, click on an undefined slot to drop the item.
             if (ItemHelper.canThrowAwayStack(mod, cursorStack)) {
-                mod.getSlotHandler().clickSlot(Slot.UNDEFINED, 0, SlotActionType.PICKUP);
+                mod.getSlotHandler().clickSlot(Slot.UNDEFINED, 0, ContainerInput.PICKUP);
                 Debug.logInternal("Clicked undefined slot");
             }
 
@@ -225,12 +231,12 @@ public class DestroyBlockTask extends Task implements ITaskRequiresGrounded {
             Debug.logInternal("Garbage slot: " + garbage);
 
             garbage.ifPresent(slot -> {
-                mod.getSlotHandler().clickSlot(slot, 0, SlotActionType.PICKUP);
+                mod.getSlotHandler().clickSlot(slot, 0, ContainerInput.PICKUP);
                 Debug.logInternal("Clicked slot: " + slot);
             });
 
             // Click on an undefined slot to drop the item.
-            mod.getSlotHandler().clickSlot(Slot.UNDEFINED, 0, SlotActionType.PICKUP);
+            mod.getSlotHandler().clickSlot(Slot.UNDEFINED, 0, ContainerInput.PICKUP);
             Debug.logInternal("Clicked undefined slot");
         } else {
             // If the cursor stack is empty, close the screen.
@@ -249,12 +255,12 @@ public class DestroyBlockTask extends Task implements ITaskRequiresGrounded {
         AltoClef mod = AltoClef.getInstance();
 
         // Check if there is white wool at the specified position
-        if (mod.getWorld().getBlockState(pos).getBlock() == Blocks.WHITE_WOOL) {
+        if (mod.getWorld().getBlockState(pos).getBlock() == net.minecraft.world.level.block.Blocks.WOOL.white()) {
             // Iterate over all entities in the world
-            Iterable<Entity> entities = mod.getWorld().getEntities();
+            Iterable<Entity> entities = mod.getWorld().entitiesForRendering();
             for (Entity entity : entities) {
                 // Check if the entity is a PillagerEntity and is within a distance of 144 blocks from the position
-                if (entity instanceof PillagerEntity && pos.isWithinDistance(entity.getPos(), 144)) {
+                if (entity instanceof Pillager && pos.closerToCenterThan(entity.position(), 144)) {
                     Debug.logMessage("Blacklisting pillager wool.");
                     // Request the block at the position to be marked as unreachable
                     mod.getBlockScanner().requestBlockUnreachable(pos, 0);
@@ -315,7 +321,7 @@ public class DestroyBlockTask extends Task implements ITaskRequiresGrounded {
 
         // Check if the block above the position is not solid, the player is above the position,
         // and the player is within a distance of 0.89 blocks from the position
-        if (!WorldHelper.isSolidBlock(pos.up()) && mod.getPlayer().getPos().y > pos.getY() && pos.isWithinDistance(mod.getPlayer().isOnGround() ? mod.getPlayer().getPos() : mod.getPlayer().getPos().add(0, -1, 0), 0.89)) {
+        if (!WorldHelper.isSolidBlock(pos.above()) && mod.getPlayer().position().y > pos.getY() && pos.closerToCenterThan(mod.getPlayer().onGround() ? mod.getPlayer().position() : mod.getPlayer().position().add(0, -1, 0), 0.89)) {
             if (WorldHelper.dangerousToBreakIfRightAbove(pos)) {
                 setDebugState("It's dangerous to break as we're right above it, moving away and trying again.");
                 return new RunAwayFromPositionTask(3, pos.getY(), pos);
@@ -323,7 +329,7 @@ public class DestroyBlockTask extends Task implements ITaskRequiresGrounded {
         }
 
         Optional<Rotation> reach = LookHelper.getReach(pos);
-        if (reach.isPresent() && (mod.getPlayer().isTouchingWater() || mod.getPlayer().isOnGround()) && !mod.getFoodChain().needsToEat() && !WorldHelper.isInNetherPortal() && mod.getClientBaritone().getPathingBehavior().isSafeToCancel()) {
+        if (reach.isPresent() && (mod.getPlayer().isInWater() || mod.getPlayer().onGround()) && !mod.getFoodChain().needsToEat() && !WorldHelper.isInNetherPortal() && mod.getClientBaritone().getPathingBehavior().isSafeToCancel()) {
             setDebugState("Block in range, mining...");
             stuckCheck.reset();
             isMining = true;
@@ -339,7 +345,7 @@ public class DestroyBlockTask extends Task implements ITaskRequiresGrounded {
             mod.getClientBaritone().getInputOverrideHandler().setInputForceState(Input.CLICK_LEFT, true);
         } else {
             setDebugState("Getting to block...");
-            if (isMining && mod.getPlayer().isTouchingWater()) {
+            if (isMining && mod.getPlayer().isInWater()) {
                 setDebugState("We are in water... holding break button");
                 isMining = false;
                 mod.getBlockScanner().requestBlockUnreachable(pos);
@@ -347,9 +353,9 @@ public class DestroyBlockTask extends Task implements ITaskRequiresGrounded {
             } else {
                 isMining = false;
             }
-            boolean isCloseToMoveBack = pos.isWithinDistance(mod.getPlayer().getPos(), 2);
+            boolean isCloseToMoveBack = pos.closerToCenterThan(mod.getPlayer().position(), 2);
             if (isCloseToMoveBack) {
-                if (!mod.getClientBaritone().getPathingBehavior().isPathing() && !mod.getPlayer().isTouchingWater() &&
+                if (!mod.getClientBaritone().getPathingBehavior().isPathing() && !mod.getPlayer().isInWater() &&
                         !mod.getFoodChain().needsToEat()) {
                     mod.getInputControls().hold(Input.MOVE_BACK);
                     mod.getInputControls().hold(Input.SNEAK);
@@ -360,7 +366,7 @@ public class DestroyBlockTask extends Task implements ITaskRequiresGrounded {
             }
             if (!mod.getClientBaritone().getCustomGoalProcess().isActive()) {
                 mod.getClientBaritone().getBuilderProcess().onLostControl();
-                mod.getClientBaritone().getCustomGoalProcess().setGoalAndPath(mod.getWorld().getBlockState(pos.up()).getBlock() ==
+                mod.getClientBaritone().getCustomGoalProcess().setGoalAndPath(mod.getWorld().getBlockState(pos.above()).getBlock() ==
                         Blocks.SNOW ? new GoalBlock(pos) : new GoalNear(pos, 1));
             }
         }

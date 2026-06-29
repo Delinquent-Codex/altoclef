@@ -10,8 +10,14 @@ import adris.altoclef.util.helpers.WorldHelper;
 import adris.altoclef.util.progresscheck.MovementProgressChecker;
 import baritone.api.pathing.goals.Goal;
 import baritone.api.utils.input.Input;
-import net.minecraft.block.*;
-import net.minecraft.util.math.BlockPos;
+import net.minecraft.world.level.block.*;
+import net.minecraft.world.level.block.state.*;
+import net.minecraft.core.BlockPos;
+import net.minecraft.world.level.block.Block;
+import net.minecraft.world.level.block.DoorBlock;
+import net.minecraft.world.level.block.FenceBlock;
+import net.minecraft.world.level.block.FenceGateBlock;
+import net.minecraft.world.level.block.FlowerBlock;
 
 /**
  * Turns a baritone goal into a task.
@@ -52,14 +58,14 @@ public abstract class CustomBaritoneGoalTask extends Task implements ITaskRequir
 
     private static BlockPos[] generateSides(BlockPos pos) {
         return new BlockPos[]{
-                pos.add(1,0,0),
-                pos.add(-1,0,0),
-                pos.add(0,0,1),
-                pos.add(0,0,-1),
-                pos.add(1,0,-1),
-                pos.add(1,0,1),
-                pos.add(-1,0,-1),
-                pos.add(-1,0,1)
+                pos.offset(1,0,0),
+                pos.offset(-1,0,0),
+                pos.offset(0,0,1),
+                pos.offset(0,0,-1),
+                pos.offset(1,0,-1),
+                pos.offset(1,0,1),
+                pos.offset(-1,0,-1),
+                pos.offset(-1,0,1)
         };
     }
 
@@ -75,16 +81,16 @@ public abstract class CustomBaritoneGoalTask extends Task implements ITaskRequir
     }
 
     private BlockPos stuckInBlock(AltoClef mod) {
-        BlockPos p = mod.getPlayer().getBlockPos();
+        BlockPos p = mod.getPlayer().blockPosition();
         if (isAnnoying(mod, p)) return p;
-        if (isAnnoying(mod, p.up())) return p.up();
+        if (isAnnoying(mod, p.above())) return p.above();
         BlockPos[] toCheck = generateSides(p);
         for (BlockPos check : toCheck) {
             if (isAnnoying(mod, check)) {
                 return check;
             }
         }
-        BlockPos[] toCheckHigh = generateSides(p.up());
+        BlockPos[] toCheckHigh = generateSides(p.above());
         for (BlockPos check : toCheckHigh) {
             if (isAnnoying(mod, check)) {
                 return check;
@@ -180,7 +186,7 @@ public abstract class CustomBaritoneGoalTask extends Task implements ITaskRequir
         if (cachedGoal == null) {
             cachedGoal = newGoal(AltoClef.getInstance());
         }
-        return cachedGoal != null && cachedGoal.isInGoal(AltoClef.getInstance().getPlayer().getBlockPos());
+        return cachedGoal != null && cachedGoal.isInGoal(AltoClef.getInstance().getPlayer().blockPosition());
     }
 
     @Override

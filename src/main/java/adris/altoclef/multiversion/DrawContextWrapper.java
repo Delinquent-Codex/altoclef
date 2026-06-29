@@ -1,106 +1,51 @@
 package adris.altoclef.multiversion;
 
 import adris.altoclef.mixins.DrawableHelperInvoker;
-import net.minecraft.client.MinecraftClient;
-import net.minecraft.client.font.TextRenderer;
-import net.minecraft.client.gui.DrawContext;
-import net.minecraft.client.render.RenderLayer;
-import net.minecraft.client.util.math.MatrixStack;
+import net.minecraft.client.gui.Font;
+import net.minecraft.client.gui.GuiGraphicsExtractor;
+import org.joml.Matrix3x2fStack;
 import org.jetbrains.annotations.Nullable;
 
 public class DrawContextWrapper {
 
 
-    //#if MC >= 12001
-    public static DrawContextWrapper of(DrawContext context) {
+    public static DrawContextWrapper of(GuiGraphicsExtractor context) {
         if (context == null) return null;
         return new DrawContextWrapper(context);
     }
-    private final DrawContext context;
+    private final GuiGraphicsExtractor context;
 
-    private DrawContextWrapper(DrawContext context) {
+    private DrawContextWrapper(GuiGraphicsExtractor context) {
         this.context = context;
-    }
-    //#else
-    //$$ public static DrawContextWrapper of(MatrixStack matrices) {
-    //$$    if (matrices == null) return null;
-    //$$    return new DrawContextWrapper(matrices);
-    //$$ }
-    //$$
-    //$$ private final MatrixStack matrices;
-    //$$ private final DrawableHelper helper;
-    //$$ private DrawContextWrapper(MatrixStack matrices) {
-    //$$        this.matrices = matrices;
-    //$$        this.helper = new DrawableHelper(){};
-    //$$ }
-    //#endif
-
-    private RenderLayer renderLayer = null;
-
-    // used only 1.20.1 and later... can pass null in earlier versions
-    public void setRenderLayer(RenderLayer renderLayer) {
-        this.renderLayer = renderLayer;
     }
 
     public void fill(int x1, int y1, int x2, int y2, int color) {
-        //#if MC >= 12001
-        context.fill(renderLayer, x1, y1, x2, y2, color);
-        //#else
-        //$$  DrawableHelper.fill(matrices, x1, y1, x2, y2, color);
-        //#endif
+        context.fill(x1, y1, x2, y2, color);
     }
 
     public void drawHorizontalLine(int x1, int x2, int y, int color) {
-        //#if MC >= 12001
-        context.drawHorizontalLine(renderLayer, x1, x2, y, color);
-        //#else
-        //$$ ((DrawableHelperInvoker) helper).invokeDrawHorizontalLine(matrices, x1, x2, y, color);
-        //#endif
+        context.horizontalLine(x1, x2, y, color);
     }
 
     public void drawVerticalLine(int x, int y1, int y2, int color) {
-        //#if MC >= 12001
-        context.drawVerticalLine(renderLayer, x, y1, y2, color);
-        //#else
-        //$$ ((DrawableHelperInvoker) helper).invokeDrawVerticalLine(matrices, x, y1, y2, color);
-        //#endif
+        context.verticalLine(x, y1, y2, color);
     }
 
-    public void drawText(TextRenderer textRenderer, @Nullable String text, int x, int y, int color, boolean shadow) {
-        //#if MC >= 12001
-        context.drawText(textRenderer,text,x,y,color,shadow);
-        //#else
-        //$$ if (shadow) {
-        //$$    textRenderer.drawWithShadow(matrices, text,x,y,color);
-        //$$ } else {
-        //$$    textRenderer.draw(matrices, text,x,y,color);
-        //$$ }
-        //#endif
+    public void drawText(Font textRenderer, @Nullable String text, int x, int y, int color, boolean shadow) {
+        context.text(textRenderer,text,x,y,color,shadow);
     }
 
 
-    public MatrixStack getMatrices() {
-        //#if MC >= 12001
-        return context.getMatrices();
-        //#else
-        //$$ return matrices;
-        //#endif
+    public Matrix3x2fStack getMatrices() {
+        return context.pose();
     }
 
     public int getScaledWindowWidth() {
-        //#if MC >= 12001
-        return context.getScaledWindowWidth();
-        //#else
-        //$$ return MinecraftClient.getInstance().getWindow().getScaledWidth();
-        //#endif
+        return context.guiWidth();
     }
 
     public int getScaledWindowHeight() {
-        //#if MC >= 12001
-        return context.getScaledWindowHeight();
-        //#else
-        //$$ return MinecraftClient.getInstance().getWindow().getScaledHeight();
-        //#endif
+        return context.guiHeight();
     }
 
 

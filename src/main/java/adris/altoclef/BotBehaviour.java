@@ -2,21 +2,19 @@ package adris.altoclef;
 
 import adris.altoclef.util.slots.Slot;
 import baritone.altoclef.AltoClefSettings;
-import baritone.api.Settings;
 import baritone.api.utils.RayTraceUtils;
-import net.minecraft.block.BlockState;
-import net.minecraft.client.MinecraftClient;
-import net.minecraft.entity.Entity;
-import net.minecraft.item.Item;
-import net.minecraft.item.ItemStack;
-import net.minecraft.util.Pair;
-import net.minecraft.util.math.BlockPos;
-import net.minecraft.world.RaycastContext;
-
 import java.util.*;
 import java.util.function.BiFunction;
 import java.util.function.BiPredicate;
 import java.util.function.Predicate;
+import net.minecraft.client.Minecraft;
+import net.minecraft.core.BlockPos;
+import adris.altoclef.compat.Tuple;
+import net.minecraft.world.entity.Entity;
+import net.minecraft.world.item.Item;
+import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.level.ClipContext;
+import net.minecraft.world.level.block.state.BlockState;
 
 /**
  * Represents the current behaviour/"on the fly settings" of the bot.
@@ -95,12 +93,12 @@ public class BotBehaviour {
         // current.applyState();
     }
 
-    public List<Pair<Slot, Predicate<ItemStack>>> getConversionSlots() {
+    public List<Tuple<Slot, Predicate<ItemStack>>> getConversionSlots() {
         return current().conversionSlots;
     }
 
     public void markSlotAsConversionSlot(Slot slot, Predicate<ItemStack> itemBelongsHere) {
-        current().conversionSlots.add(new Pair<>(slot, itemBelongsHere));
+        current().conversionSlots.add(new Tuple<>(slot, itemBelongsHere));
         // apply not needed
     }
 
@@ -135,7 +133,7 @@ public class BotBehaviour {
         current().applyState();
     }
 
-    public void setRayTracingFluidHandling(RaycastContext.FluidHandling fluidHandling) {
+    public void setRayTracingFluidHandling(ClipContext.Fluid fluidHandling) {
         current().rayFluidHandling = fluidHandling;
         //Debug.logMessage("OOF: " + fluidHandling);
         current().applyState();
@@ -273,7 +271,7 @@ public class BotBehaviour {
         public boolean forceFieldPlayers;
         public List<Predicate<Entity>> avoidDodgingProjectile = new ArrayList<>();
         public List<Predicate<Entity>> excludeFromForceField = new ArrayList<>();
-        public List<Pair<Slot, Predicate<ItemStack>>> conversionSlots = new ArrayList<>();
+        public List<Tuple<Slot, Predicate<ItemStack>>> conversionSlots = new ArrayList<>();
 
         // Extra Baritone Settings
         public HashSet<BlockPos> blocksToAvoidBreaking = new HashSet<>();
@@ -289,7 +287,7 @@ public class BotBehaviour {
         public boolean pauseOnLostFocus = true;
 
         // Hard coded stuff
-        public RaycastContext.FluidHandling rayFluidHandling;
+        public ClipContext.Fluid rayFluidHandling;
 
         // Other necessary stuff
         public boolean escapeLava = true;
@@ -327,7 +325,7 @@ public class BotBehaviour {
         /**
          * Read in a copy of the current state
          */
-        private void readState(Settings s) {
+        private void readState(baritone.api.Settings s) {
             followOffsetDistance = s.followOffsetDistance.value;
             mineScanDroppedItems = s.mineScanDroppedItems.value;
             swimThroughLava = s.assumeWalkOnLava.value;
@@ -360,13 +358,13 @@ public class BotBehaviour {
         }
 
         private void readMinecraftState() {
-            pauseOnLostFocus = MinecraftClient.getInstance().options.pauseOnLostFocus;
+            pauseOnLostFocus = Minecraft.getInstance().options.pauseOnLostFocus;
         }
 
         /**
          * Make the current state match our copy
          */
-        private void applyState(Settings s, AltoClefSettings sa) {
+        private void applyState(baritone.api.Settings s, AltoClefSettings sa) {
             s.followOffsetDistance.value = followOffsetDistance;
             s.mineScanDroppedItems.value = mineScanDroppedItems;
             s.allowDiagonalAscend.value = allowDiagonalAscend;
@@ -410,7 +408,7 @@ public class BotBehaviour {
             RayTraceUtils.fluidHandling = rayFluidHandling;
 
             // Minecraft
-            MinecraftClient.getInstance().options.pauseOnLostFocus = pauseOnLostFocus;
+            Minecraft.getInstance().options.pauseOnLostFocus = pauseOnLostFocus;
         }
     }
 }

@@ -1,66 +1,51 @@
-name: Java CI with Gradle
+name: Fabric 26.2 Build
 
 on:
   push:
-    branches: [ main ]
+    branches: [main, "codex/**"]
   pull_request:
-    branches: [ main ]
+    branches: [main]
 
 jobs:
   build:
     runs-on: ubuntu-latest
 
-    env:
-      LATEST_VERSION: "1.21"
-      INCLUDE_DEVLIBS: "true"
-      
-      # Warning: Don't add too many versions because it takes a lot of space in the artifacts,
-      # and I've gotten an email from GitHub about it so please just don't.
-      VERSIONS_TO_BUILD: "1.16.5 1.17.1 1.18.2 1.20.4 1.21"
-
     steps:
-      - uses: actions/checkout@v2
+      - name: Checkout
+        uses: actions/checkout@v4
 
-      - name: Set up JDK 21
-        uses: actions/setup-java@v2
+      - name: Set up Java 25
+        uses: actions/setup-java@v4
         with:
-          java-version: '21'
-          distribution: 'adopt'
+          distribution: temurin
+          java-version: "25"
 
-      - name: Grant execute permission for gradlew
-        run: chmod +x gradlew
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v5
 
-      - name: Create versions directory and mainProject
+      - name: Build
+        run: ./gradlew clean build --warning-mode all
+
+      - name: Write SHA-256 hashes
         run: |
-          mkdir -p ./versions
-          if [ ! -f ./versions/mainProject ]; then
-            echo $LATEST_VERSION > ./versions/mainProject
-          fi
+          mkdir -p build/artifact-hashes
+          find build/libs -maxdepth 1 -name '*.jar' -print0 | sort -z | xargs -0 sha256sum > build/artifact-hashes/sha256.txt
 
-      - name: Build with Gradle
-        run: ./gradlew build
-
-      - name: Create artifact directory structure
-        run: |
-          mkdir -p artifacts
-          for version in $VERSIONS_TO_BUILD; do
-            mkdir -p artifacts/$version/libs
-            cp ./versions/$version/build/libs/*.jar artifacts/$version/libs/
-            if [ "$INCLUDE_DEVLIBS" = "true" ]; then
-              mkdir -p artifacts/$version/devlibs
-              cp ./versions/$version/build/devlibs/*.jar artifacts/$version/devlibs/
-            fi
-          done
-
-      - name: Compute hashes
-        run: |
-          touch artifacts/hashes.txt
-          for jar in $(find artifacts -name '*.jar'); do
-            sha256sum $jar >> artifacts/hashes.txt
-          done
-
-      - name: Archive Artifacts
-        uses: actions/upload-artifact@v2
+      - name: Upload Fabric 26.2 jars
+        uses: actions/upload-artifact@v4
         with:
-          name: Artifacts
-          path: artifacts
+          name: altoclef-fabric-26.2
+          path: |
+            build/libs/altoclef-*+mc26.2.jar
+            build/libs/altoclef-*+mc26.2-sources.jar
+            build/artifact-hashes/sha256.txt
+
+      - name: Upload test reports
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: altoclef-26.2-test-reports
+          path: |
+            build/reports/tests/
+            build/test-results/
+          if-no-files-found: ignore

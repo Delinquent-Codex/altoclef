@@ -4,8 +4,8 @@ import adris.altoclef.AltoClef;
 import adris.altoclef.tasksystem.ITaskRequiresGrounded;
 import adris.altoclef.tasksystem.Task;
 import baritone.Baritone;
-import net.minecraft.client.MinecraftClient;
-import net.minecraft.util.math.BlockPos;
+import net.minecraft.client.Minecraft;
+import net.minecraft.core.BlockPos;
 
 
 public class ClearRegionTask extends Task implements ITaskRequiresGrounded {
@@ -51,9 +51,9 @@ public class ClearRegionTask extends Task implements ITaskRequiresGrounded {
         for (int xx = 0; xx < Math.abs(x); ++xx) {
             for (int yy = 0; yy < Math.abs(y); ++yy) {
                 for (int zz = 0; zz < Math.abs(z); ++zz) {
-                    BlockPos toCheck = new BlockPos(_from).add(xx * -Integer.signum(x),yy * -Integer.signum(y),zz * -Integer.signum(z));
-                    assert MinecraftClient.getInstance().world != null;
-                    if (!MinecraftClient.getInstance().world.isAir(toCheck)) {
+                    BlockPos toCheck = new BlockPos(_from).offset(xx * -Integer.signum(x),yy * -Integer.signum(y),zz * -Integer.signum(z));
+                    assert Minecraft.getInstance().level != null;
+                    if (!Minecraft.getInstance().level.isEmptyBlock(toCheck)) {
                         return false;
                     }
                 }

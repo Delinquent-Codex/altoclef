@@ -3,41 +3,38 @@ package adris.altoclef.util;
 import adris.altoclef.multiversion.RecipeVer;
 import adris.altoclef.multiversion.recipemanager.RecipeManagerWrapper;
 import adris.altoclef.multiversion.recipemanager.WrappedRecipeEntry;
-import net.minecraft.client.MinecraftClient;
-import net.minecraft.client.world.ClientWorld;
-import net.minecraft.item.Item;
-import net.minecraft.item.ItemStack;
-import net.minecraft.recipe.Ingredient;
-import net.minecraft.recipe.Recipe;
-
 import java.util.*;
 import java.util.stream.Collectors;
+import net.minecraft.client.Minecraft;
+import net.minecraft.client.multiplayer.ClientLevel;
+import net.minecraft.core.registries.BuiltInRegistries;
+import net.minecraft.world.item.Item;
+import net.minecraft.world.item.crafting.Ingredient;
 
 /**
  * For crafting table/inventory recipe book crafting, we need to figure out identifiers given a recipe.
  */
 public class JankCraftingRecipeMapping {
     private static final HashMap<Item, List<WrappedRecipeEntry>> recipeMapping = new HashMap<>();
+    private static ClientLevel mappedWorld;
 
     /**
      * Reloads the recipe mapping.
      */
     private static void reloadRecipeMapping() {
-        MinecraftClient client = MinecraftClient.getInstance();
+        Minecraft client = Minecraft.getInstance();
+        recipeMapping.clear();
+        mappedWorld = client.level;
 
-        // Check if the network handler is available
-        if (client.getNetworkHandler() != null) {
-            RecipeManagerWrapper recipes = RecipeManagerWrapper.of(client.getNetworkHandler().getRecipeManager());
-            ClientWorld world = client.world;
+        RecipeManagerWrapper recipes = RecipeManagerWrapper.of(client);
+        if (recipes == null) return;
 
-            // Check if the recipe manager is available
-            if (recipes != null) {
-                for (WrappedRecipeEntry recipe : recipes.values()) {
-                    assert world != null;
-                    Recipe<?> value = recipe.value();
-                    Item output = RecipeVer.getOutput(value,world).getItem();
-                    recipeMapping.computeIfAbsent(output, k -> new ArrayList<>()).add(recipe);
-                }
+        for (WrappedRecipeEntry recipe : recipes.values()) {
+            ClientLevel world = client.level;
+            if (world == null) continue;
+            Item output = RecipeVer.getOutput(recipe.value(), world).getItem();
+            if (output != net.minecraft.world.item.Items.AIR) {
+                recipeMapping.computeIfAbsent(output, k -> new ArrayList<>()).add(recipe);
             }
         }
     }
@@ -50,7 +47,11 @@ public class JankCraftingRecipeMapping {
      * @return An Optional containing the mapped recipe entry if found, or an empty Optional if not found.
      */
     public static Optional<WrappedRecipeEntry> getMinecraftMappedRecipe(CraftingRecipe recipe, Item output) {
-        reloadRecipeMapping();
+        ClientLevel currentWorld = Minecraft.getInstance().level;
+        if (currentWorld != mappedWorld || !recipeMapping.containsKey(output)) {
+            reloadRecipeMapping();
+        }
+
         // Check if the output item is present in the recipe mapping
         if (recipeMapping.containsKey(output)) {
             // Iterate through all the recipes mapped to the output item
@@ -60,25 +61,39 @@ public class JankCraftingRecipeMapping {
                         .filter(itemTarget -> itemTarget != null && !itemTarget.isEmpty())
                         .collect(Collectors.toList());
                 // Check if the recipe has ingredients
-                if (!checkRecipe.value().getIngredients().isEmpty()) {
-                    // Iterate through the ingredients of the recipe
-                    for (Ingredient ingredient : checkRecipe.value().getIngredients()) {
+                if (checkRecipe.entry().craftingRequirements().isPresent()) {
+                    List<Ingredient> requirements = checkRecipe.entry().craftingRequirements().get();
+                    long nonEmptyRequirementCount = requirements.stream().filter(ingredient -> !ingredient.isEmpty()).count();
+                    if (nonEmptyRequirementCount != toSatisfy.size()) {
+                        continue;
+                    }
+
+                    boolean allIngredientsMatched = true;
+                    for (Ingredient ingredient : requirements) {
                         // Skip empty ingredients
                         if (ingredient.isEmpty()) {
                             continue;
                         }
-                        // Iterate through the items to satisfy
-                        outer:
+
+                        boolean ingredientMatched = false;
                         for (int i = 0; i < toSatisfy.size(); ++i) {
                             ItemTarget target = toSatisfy.get(i);
-                            // Check if any of the ingredient's matching stacks matches the item target
-                            for (ItemStack stack : ingredient.getMatchingStacks()) {
-                                if (target.matches(stack.getItem())) {
-                                    toSatisfy.remove(i);
-                                    break outer;
-                                }
+                            if (Arrays.stream(target.getMatches())
+                                    .anyMatch(item -> ingredient.acceptsItem(BuiltInRegistries.ITEM.wrapAsHolder(item)))) {
+                                toSatisfy.remove(i);
+                                ingredientMatched = true;
+                                break;
                             }
                         }
+
+                        if (!ingredientMatched) {
+                            allIngredientsMatched = false;
+                            break;
+                        }
+                    }
+
+                    if (!allIngredientsMatched) {
+                        continue;
                     }
                 }
                 // Check if all the item targets have been satisfied

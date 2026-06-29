@@ -3,6 +3,8 @@ package adris.altoclef.commandsystem;
 import adris.altoclef.commandsystem.args.Arg;
 import adris.altoclef.commandsystem.exception.CommandException;
 import adris.altoclef.commandsystem.exception.RuntimeCommandException;
+import java.util.ArrayList;
+import java.util.List;
 
 public class ArgParser {
 
@@ -26,13 +28,13 @@ public class ArgParser {
     }
 
     // Get the next argument.
+    @SuppressWarnings("unchecked")
     public <T> T get(Class<T> type) throws CommandException {
         if (argCounter >= args.length) {
             throw new RuntimeCommandException("You tried grabbing more arguments than you had... Bad move.");
         }
 
-        if (args[argCounter].getType().isAssignableFrom(type)) {
-            //noinspection unchecked
+        if (type.isAssignableFrom(args[argCounter].getType())) {
             Arg<T> arg = (Arg<T>) args[argCounter];
 
             if (!reader.hasNext()) {
@@ -50,6 +52,23 @@ public class ArgParser {
         }
 
         throw new RuntimeCommandException("Not the same type! ("+args[argCounter].getType() + " VS "+type+")");
+    }
+
+    public <T> List<T> getList(Class<T> elementType) throws CommandException {
+        List<?> values = get(List.class);
+        if (values == null) {
+            return null;
+        }
+
+        List<T> result = new ArrayList<>(values.size());
+        for (Object value : values) {
+            if (!elementType.isInstance(value)) {
+                throw new RuntimeCommandException("Expected a list of " + elementType.getSimpleName()
+                        + " but found " + value.getClass().getSimpleName());
+            }
+            result.add(elementType.cast(value));
+        }
+        return result;
     }
 
     public Arg<?>[] getArgs() {

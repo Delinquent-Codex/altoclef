@@ -2,12 +2,12 @@ package adris.altoclef.util.progresscheck;
 
 import adris.altoclef.AltoClef;
 import adris.altoclef.util.helpers.WorldHelper;
-import net.minecraft.util.math.BlockPos;
-import net.minecraft.util.math.Vec3d;
+import net.minecraft.core.BlockPos;
+import net.minecraft.world.phys.Vec3;
 
 public class MovementProgressChecker {
 
-    private final IProgressChecker<Vec3d> distanceChecker;
+    private final IProgressChecker<Vec3> distanceChecker;
     private final IProgressChecker<Double> mineChecker;
 
     private BlockPos lastBreakingBlock = null;
@@ -51,7 +51,7 @@ public class MovementProgressChecker {
             return !mineChecker.failed();
         } else {
             mineChecker.reset();
-            distanceChecker.setProgress(mod.getPlayer().getPos());
+            distanceChecker.setProgress(mod.getPlayer().position());
             return !distanceChecker.failed();
         }
     }

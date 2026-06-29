@@ -13,15 +13,20 @@ import adris.altoclef.util.progresscheck.MovementProgressChecker;
 import adris.altoclef.util.slots.Slot;
 import adris.altoclef.util.time.TimerGame;
 import baritone.api.utils.input.Input;
-import net.minecraft.block.*;
-import net.minecraft.client.network.ClientPlayerEntity;
-import net.minecraft.entity.Entity;
-import net.minecraft.entity.mob.MobEntity;
-import net.minecraft.item.ItemStack;
-import net.minecraft.screen.slot.SlotActionType;
-import net.minecraft.util.math.BlockPos;
-import net.minecraft.util.math.Vec3d;
-
+import net.minecraft.world.level.block.*;
+import net.minecraft.world.level.block.state.*;
+import net.minecraft.client.player.LocalPlayer;
+import net.minecraft.core.BlockPos;
+import net.minecraft.world.entity.Entity;
+import net.minecraft.world.entity.Mob;
+import net.minecraft.world.inventory.ContainerInput;
+import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.level.block.Block;
+import net.minecraft.world.level.block.DoorBlock;
+import net.minecraft.world.level.block.FenceBlock;
+import net.minecraft.world.level.block.FenceGateBlock;
+import net.minecraft.world.level.block.FlowerBlock;
+import net.minecraft.world.phys.Vec3;
 import java.util.List;
 import java.util.Optional;
 
@@ -51,7 +56,7 @@ public class TimeoutWanderTask extends Task implements ITaskRequiresGrounded {
             Blocks.SHORT_GRASS,
             Blocks.SWEET_BERRY_BUSH
     };
-    private Vec3d origin;
+    private Vec3 origin;
     //private DistanceProgressChecker _distanceProgressChecker = new DistanceProgressChecker(10, 0.1f);
     private boolean _forceExplore;
     private Task _unstuckTask = null;
@@ -79,14 +84,14 @@ public class TimeoutWanderTask extends Task implements ITaskRequiresGrounded {
 
     private static BlockPos[] generateSides(BlockPos pos) {
         return new BlockPos[]{
-                pos.add(1,0,0),
-                pos.add(-1,0,0),
-                pos.add(0,0,1),
-                pos.add(0,0,-1),
-                pos.add(1,0,-1),
-                pos.add(1,0,1),
-                pos.add(-1,0,-1),
-                pos.add(-1,0,1)
+                pos.offset(1,0,0),
+                pos.offset(-1,0,0),
+                pos.offset(0,0,1),
+                pos.offset(0,0,-1),
+                pos.offset(1,0,-1),
+                pos.offset(1,0,1),
+                pos.offset(-1,0,-1),
+                pos.offset(-1,0,1)
         };
     }
 
@@ -107,16 +112,16 @@ public class TimeoutWanderTask extends Task implements ITaskRequiresGrounded {
 
     // This happens all the time in mineshafts and swamps/jungles
     private BlockPos stuckInBlock(AltoClef mod) {
-        BlockPos p = mod.getPlayer().getBlockPos();
+        BlockPos p = mod.getPlayer().blockPosition();
         if (isAnnoying(mod, p)) return p;
-        if (isAnnoying(mod, p.up())) return p.up();
+        if (isAnnoying(mod, p.above())) return p.above();
         BlockPos[] toCheck = generateSides(p);
         for (BlockPos check : toCheck) {
             if (isAnnoying(mod, check)) {
                 return check;
             }
         }
-        BlockPos[] toCheckHigh = generateSides(p.up());
+        BlockPos[] toCheckHigh = generateSides(p.above());
         for (BlockPos check : toCheckHigh) {
             if (isAnnoying(mod, check)) {
                 return check;
@@ -135,21 +140,21 @@ public class TimeoutWanderTask extends Task implements ITaskRequiresGrounded {
 
         timer.reset();
         mod.getClientBaritone().getPathingBehavior().forceCancel();
-        origin = mod.getPlayer().getPos();
+        origin = mod.getPlayer().position();
         progressChecker.reset();
         stuckCheck.reset();
         failCounter = 0;
         ItemStack cursorStack = StorageHelper.getItemStackInCursorSlot();
         if (!cursorStack.isEmpty()) {
             Optional<Slot> moveTo = mod.getItemStorage().getSlotThatCanFitInPlayerInventory(cursorStack, false);
-            moveTo.ifPresent(slot -> mod.getSlotHandler().clickSlot(slot, 0, SlotActionType.PICKUP));
+            moveTo.ifPresent(slot -> mod.getSlotHandler().clickSlot(slot, 0, ContainerInput.PICKUP));
             if (ItemHelper.canThrowAwayStack(mod, cursorStack)) {
-                mod.getSlotHandler().clickSlot(Slot.UNDEFINED, 0, SlotActionType.PICKUP);
+                mod.getSlotHandler().clickSlot(Slot.UNDEFINED, 0, ContainerInput.PICKUP);
             }
             Optional<Slot> garbage = StorageHelper.getGarbageSlot(mod);
             // Try throwing away cursor slot if it's garbage
-            garbage.ifPresent(slot -> mod.getSlotHandler().clickSlot(slot, 0, SlotActionType.PICKUP));
-            mod.getSlotHandler().clickSlot(Slot.UNDEFINED, 0, SlotActionType.PICKUP);
+            garbage.ifPresent(slot -> mod.getSlotHandler().clickSlot(slot, 0, ContainerInput.PICKUP));
+            mod.getSlotHandler().clickSlot(Slot.UNDEFINED, 0, ContainerInput.PICKUP);
         } else {
             StorageHelper.closeScreen();
         }
@@ -192,8 +197,8 @@ public class TimeoutWanderTask extends Task implements ITaskRequiresGrounded {
         if (!progressChecker.check(mod) || !stuckCheck.check(mod)) {
             List<Entity> closeEntities = mod.getEntityTracker().getCloseEntities();
             for (Entity CloseEntities : closeEntities) {
-                if (CloseEntities instanceof MobEntity &&
-                        CloseEntities.getPos().isInRange(mod.getPlayer().getPos(), 1)) {
+                if (CloseEntities instanceof Mob &&
+                        CloseEntities.position().closerThan(mod.getPlayer().position(), 1)) {
                     setDebugState("Killing annoying entity.");
                     return new KillEntitiesTask(CloseEntities.getClass());
                 }
@@ -222,7 +227,7 @@ public class TimeoutWanderTask extends Task implements ITaskRequiresGrounded {
             }
         }
         if (!mod.getClientBaritone().getExploreProcess().isActive()) {
-            mod.getClientBaritone().getExploreProcess().explore((int) origin.getX(), (int) origin.getZ());
+            mod.getClientBaritone().getExploreProcess().explore((int) origin.x(), (int) origin.z());
         }
         if (!progressChecker.check(mod)) {
             progressChecker.reset();
@@ -257,11 +262,11 @@ public class TimeoutWanderTask extends Task implements ITaskRequiresGrounded {
             return true;
         }
 
-        ClientPlayerEntity player = AltoClef.getInstance().getPlayer();
+        LocalPlayer player = AltoClef.getInstance().getPlayer();
 
-        if (player != null && player.getPos() != null && (player.isOnGround() ||
-                player.isTouchingWater())) {
-            double sqDist = player.getPos().squaredDistanceTo(origin);
+        if (player != null && player.position() != null && (player.onGround() ||
+                player.isInWater())) {
+            double sqDist = player.position().distanceToSqr(origin);
             double toWander = distanceToWander + _wanderDistanceExtension;
             return sqDist > toWander * toWander;
         } else {

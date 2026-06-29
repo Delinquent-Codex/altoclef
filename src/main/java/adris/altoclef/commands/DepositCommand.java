@@ -7,14 +7,13 @@ import adris.altoclef.commandsystem.args.ListArg;
 import adris.altoclef.commandsystem.exception.CommandException;
 import adris.altoclef.tasks.container.StoreInAnyContainerTask;
 import adris.altoclef.util.ItemTarget;
+import adris.altoclef.util.helpers.ItemComponentHelper;
 import adris.altoclef.util.helpers.StorageHelper;
 import adris.altoclef.util.slots.PlayerSlot;
-import net.minecraft.item.Item;
-import net.minecraft.item.ItemStack;
-import net.minecraft.item.ToolItem;
 import org.apache.commons.lang3.ArrayUtils;
 
 import java.util.List;
+import net.minecraft.world.item.ItemStack;
 
 public class DepositCommand extends Command {
     public DepositCommand() {
@@ -31,8 +30,7 @@ public class DepositCommand extends Command {
             ItemStack stack = StorageHelper.getItemStackInSlot(slot);
             // Ignore tools
             if (!stack.isEmpty()) {
-                Item item = stack.getItem();
-                return !(item instanceof ToolItem);
+                return !ItemComponentHelper.isTool(stack);
             }
             return false;
         });
@@ -40,7 +38,7 @@ public class DepositCommand extends Command {
 
     @Override
     protected void call(AltoClef mod, ArgParser parser) throws CommandException {
-        List<ItemTarget> itemList = parser.get(List.class);
+        List<ItemTarget> itemList = parser.getList(ItemTarget.class);
 
         ItemTarget[] items;
         if (itemList == null) {

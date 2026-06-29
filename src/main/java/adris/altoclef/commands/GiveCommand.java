@@ -9,10 +9,9 @@ import adris.altoclef.commandsystem.exception.CommandException;
 import adris.altoclef.tasks.entity.GiveItemToPlayerTask;
 import adris.altoclef.util.ItemTarget;
 import adris.altoclef.util.helpers.ItemHelper;
-import net.minecraft.item.ItemStack;
-
 import java.util.ArrayList;
 import java.util.List;
+import net.minecraft.world.item.ItemStack;
 
 public class GiveCommand extends Command {
 
@@ -40,7 +39,7 @@ public class GiveCommand extends Command {
             }
         }
         // Parse list of requested items
-        List<ItemTarget> requested = parser.get(List.class);
+        List<ItemTarget> requested = parser.getList(ItemTarget.class);
         if (requested == null || requested.isEmpty()) {
             mod.logWarning("No items specified to give.");
             finish();
@@ -51,8 +50,8 @@ public class GiveCommand extends Command {
         List<ItemTarget> resolved = new ArrayList<>();
         for (ItemTarget req : requested) {
             ItemTarget best = req;
-            for (int i = 0; i < mod.getPlayer().getInventory().size(); i++) {
-                ItemStack stack = mod.getPlayer().getInventory().getStack(i);
+            for (int i = 0; i < mod.getPlayer().getInventory().getContainerSize(); i++) {
+                ItemStack stack = mod.getPlayer().getInventory().getItem(i);
                 if (!stack.isEmpty()) {
                     String invName = ItemHelper.stripItemName(stack.getItem());
                     if (invName.equalsIgnoreCase(req.getCatalogueName())) {

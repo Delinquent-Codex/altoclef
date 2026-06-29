@@ -1,8 +1,13 @@
 package adris.altoclef.util.slots;
 
-import net.minecraft.client.MinecraftClient;
-import net.minecraft.client.gui.screen.Screen;
-import net.minecraft.client.gui.screen.ingame.*;
+import net.minecraft.client.Minecraft;
+import net.minecraft.client.gui.screens.inventory.*;
+import net.minecraft.client.gui.screens.Screen;
+import net.minecraft.client.gui.screens.inventory.AbstractFurnaceScreen;
+import net.minecraft.client.gui.screens.inventory.BrewingStandScreen;
+import net.minecraft.client.gui.screens.inventory.ContainerScreen;
+import net.minecraft.client.gui.screens.inventory.CraftingScreen;
+import net.minecraft.client.gui.screens.inventory.SmithingScreen;
 import org.apache.commons.lang3.NotImplementedException;
 
 import java.util.List;
@@ -20,14 +25,14 @@ public class SlotScreenMapping {
             e(BlastFurnaceSlot.class, screen -> screen instanceof AbstractFurnaceScreen, BlastFurnaceSlot::new),
             e(SmithingTableSlot.class, screen -> screen instanceof SmithingScreen, SmithingTableSlot::new),
             e(BrewingStandSlot.class, screen -> screen instanceof BrewingStandScreen, BrewingStandSlot::new),
-            e(ChestSlot.class, screen -> screen instanceof GenericContainerScreen, ChestSlot::new),
+            e(ChestSlot.class, screen -> screen instanceof ContainerScreen, ChestSlot::new),
             e(PlayerSlot.class, screen -> true, PlayerSlot::new), // Order matters, leave this BEFORE the BACK!
             e(CursorSlot.class, screen -> true, (slot, inv) -> CursorSlot.SLOT) // Order matters, leave this in the BACK!
     );
 
     @SuppressWarnings("unchecked")
     public static boolean isScreenOpen(Class slotType) {
-        Screen screen = MinecraftClient.getInstance().currentScreen;
+        Screen screen = Minecraft.getInstance().gui.screen();
         if (!_classList.isEmpty()) {
             for (SlotScreenMappingEntry entry : _classList) {
                 if (slotType == entry.type || slotType.isAssignableFrom(entry.type)) {
@@ -39,7 +44,7 @@ public class SlotScreenMapping {
     }
 
     public static Slot getFromScreen(int slot, boolean inventory) {
-        Screen screen = MinecraftClient.getInstance().currentScreen;
+        Screen screen = Minecraft.getInstance().gui.screen();
         if (!_classList.isEmpty()) {
             for (SlotScreenMappingEntry entry : _classList) {
                 if (entry.inScreen.test(screen)) {

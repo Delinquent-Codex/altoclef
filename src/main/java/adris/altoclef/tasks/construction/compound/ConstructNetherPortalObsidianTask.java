@@ -12,16 +12,15 @@ import adris.altoclef.tasksystem.Task;
 import adris.altoclef.util.ItemTarget;
 import adris.altoclef.util.helpers.WorldHelper;
 import adris.altoclef.util.time.TimerGame;
-import net.minecraft.block.BlockState;
-import net.minecraft.block.Blocks;
-import net.minecraft.client.MinecraftClient;
-import net.minecraft.item.Items;
-import net.minecraft.util.math.BlockPos;
-import net.minecraft.util.math.Direction;
-import net.minecraft.util.math.Vec3i;
-import net.minecraft.world.World;
-
 import java.util.LinkedList;
+import net.minecraft.client.Minecraft;
+import net.minecraft.core.BlockPos;
+import net.minecraft.core.Direction;
+import net.minecraft.core.Vec3i;
+import net.minecraft.world.item.Items;
+import net.minecraft.world.level.Level;
+import net.minecraft.world.level.block.Blocks;
+import net.minecraft.world.level.block.state.BlockState;
 
 /**
  * Build a nether portal with obsidian blocks.
@@ -83,12 +82,12 @@ public class ConstructNetherPortalObsidianTask extends Task {
     private BlockPos _destroyTarget;
 
     private static BlockPos getBuildableAreaNearby(AltoClef mod) {
-        BlockPos checkOrigin = mod.getPlayer().getBlockPos();
-        for (BlockPos toCheck : WorldHelper.scanRegion(checkOrigin, checkOrigin.add(PORTALABLE_REGION_SIZE))) {
-            if (MinecraftClient.getInstance().world == null) {
+        BlockPos checkOrigin = mod.getPlayer().blockPosition();
+        for (BlockPos toCheck : WorldHelper.scanRegion(checkOrigin, checkOrigin.offset(PORTALABLE_REGION_SIZE))) {
+            if (Minecraft.getInstance().level == null) {
                 return null;
             }
-            BlockState state = MinecraftClient.getInstance().world.getBlockState(toCheck);
+            BlockState state = Minecraft.getInstance().level.getBlockState(toCheck);
             boolean validToWorld = (WorldHelper.canPlace(toCheck) || WorldHelper.canBreak(toCheck));
             if (!validToWorld || state.getBlock() == Blocks.LAVA || state.getBlock() == Blocks.WATER || state.getBlock() == Blocks.BEDROCK) {
                 return null;
@@ -108,7 +107,7 @@ public class ConstructNetherPortalObsidianTask extends Task {
             if (origin != null) {
                 // Don't break frame
                 for (Vec3i framePosRelative : PORTAL_FRAME) {
-                    BlockPos framePos = origin.add(framePosRelative);
+                    BlockPos framePos = origin.offset(framePosRelative);
                     if (block.equals(framePos)) {
                         return mod.getWorld().getBlockState(framePos).getBlock() == Blocks.OBSIDIAN;
                     }
@@ -124,9 +123,9 @@ public class ConstructNetherPortalObsidianTask extends Task {
         AltoClef mod = AltoClef.getInstance();
 
         if (origin != null) {
-            if (mod.getWorld().getBlockState(origin.up()).getBlock() == Blocks.NETHER_PORTAL) {
+            if (mod.getWorld().getBlockState(origin.above()).getBlock() == Blocks.NETHER_PORTAL) {
                 setDebugState("Done constructing nether portal.");
-                mod.getBlockScanner().addBlock(Blocks.NETHER_PORTAL, origin.up());
+                mod.getBlockScanner().addBlock(Blocks.NETHER_PORTAL, origin.above());
                 return null;
             }
         }
@@ -134,7 +133,7 @@ public class ConstructNetherPortalObsidianTask extends Task {
         BlockPos placeTarget = null;
         if (origin != null) {
             for (Vec3i frameOffs : PORTAL_FRAME) {
-                BlockPos framePos = origin.add(frameOffs);
+                BlockPos framePos = origin.offset(frameOffs);
                 if (!mod.getBlockScanner().isBlockAtPosition(framePos, Blocks.OBSIDIAN)) {
                     placeTarget = framePos;
                     break;
@@ -168,7 +167,7 @@ public class ConstructNetherPortalObsidianTask extends Task {
 
         // Place frame
         if (placeTarget != null) {
-            World world = mod.getWorld();
+            Level world = mod.getWorld();
 
             if (surroundedByAir(world,placeTarget)) {
                 LinkedList<BlockPos> queue = new LinkedList<>();
@@ -177,8 +176,8 @@ public class ConstructNetherPortalObsidianTask extends Task {
                     BlockPos pos = queue.removeFirst();
 
                     if (surroundedByAir(world,pos)) {
-                        queue.add(pos.up());
-                        queue.add(pos.down());
+                        queue.add(pos.above());
+                        queue.add(pos.below());
                         queue.add(pos.east());
                         queue.add(pos.west());
                         queue.add(pos.north());
@@ -203,19 +202,19 @@ public class ConstructNetherPortalObsidianTask extends Task {
             return new DestroyBlockTask(_destroyTarget);
         }
         for (Vec3i middleOffs : PORTAL_INTERIOR) {
-            BlockPos middlePos = origin.add(middleOffs);
+            BlockPos middlePos = origin.offset(middleOffs);
             if (!WorldHelper.isAir(middlePos)) {
                 _destroyTarget = middlePos;
                 return new DestroyBlockTask(_destroyTarget);
             }
         }
         // Flint and steel
-        return new InteractWithBlockTask(new ItemTarget(Items.FLINT_AND_STEEL, 1), Direction.UP, origin.down(), true);
+        return new InteractWithBlockTask(new ItemTarget(Items.FLINT_AND_STEEL, 1), Direction.UP, origin.below(), true);
     }
 
-    private boolean surroundedByAir(World world, BlockPos pos) {
+    private boolean surroundedByAir(Level world, BlockPos pos) {
         return world.getBlockState(pos.west()).isAir() && world.getBlockState(pos.south()).isAir() && world.getBlockState(pos.east()).isAir() &&
-                world.getBlockState(pos.up()).isAir() && world.getBlockState(pos.down()).isAir() && world.getBlockState(pos.north()).isAir();
+                world.getBlockState(pos.above()).isAir() && world.getBlockState(pos.below()).isAir() && world.getBlockState(pos.north()).isAir();
     }
 
     @Override

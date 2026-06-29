@@ -1,6 +1,6 @@
 package adris.altoclef.eventbus.events;
 
-import net.minecraft.util.hit.BlockHitResult;
+import net.minecraft.world.phys.BlockHitResult;
 
 public class BlockInteractEvent {
     public BlockHitResult hitResult;

@@ -2,41 +2,40 @@ package adris.altoclef.commands;
 
 import adris.altoclef.AltoClef;
 import adris.altoclef.commandsystem.*;
-import adris.altoclef.commandsystem.args.CataloguedItemArg;
+import adris.altoclef.commandsystem.args.ItemTargetArg;
 import adris.altoclef.commandsystem.args.ListArg;
 import adris.altoclef.commandsystem.exception.BadCommandSyntaxException;
 import adris.altoclef.commandsystem.exception.CommandException;
 import adris.altoclef.commandsystem.exception.RuntimeCommandException;
 import adris.altoclef.tasks.misc.EquipArmorTask;
 import adris.altoclef.util.ItemTarget;
+import adris.altoclef.util.helpers.ItemComponentHelper;
 import adris.altoclef.util.helpers.ItemHelper;
-import net.minecraft.item.Equipment;
-import net.minecraft.item.Item;
-
 import java.util.Arrays;
 import java.util.List;
 import java.util.stream.Stream;
+import net.minecraft.world.item.Item;
 
 public class EquipCommand extends Command {
 
     public EquipCommand() {
         super("equip", "Equips items",
                 new ListArg<>(new EquipmentItemArg("equipment"), "[equippable_items]")
-                        .addAlias("leather", Arrays.stream(ItemHelper.LEATHER_ARMORS).map(Item::toString).toList())
-                        .addAlias("iron",Arrays.stream(ItemHelper.GOLDEN_ARMORS).map(Item::toString).toList())
-                        .addAlias("gold", Arrays.stream(ItemHelper.IRON_ARMORS).map(Item::toString).toList())
-                        .addAlias("diamond", Arrays.stream(ItemHelper.DIAMOND_ARMORS).map(Item::toString).toList())
-                        .addAlias("netherite", Arrays.stream(ItemHelper.NETHERITE_ARMORS).map(Item::toString).toList())
+                        .addAlias("leather", Arrays.stream(ItemHelper.LEATHER_ARMORS).map(ItemTarget::new).toList())
+                        .addAlias("iron", Arrays.stream(ItemHelper.IRON_ARMORS).map(ItemTarget::new).toList())
+                        .addAlias("gold", Arrays.stream(ItemHelper.GOLDEN_ARMORS).map(ItemTarget::new).toList())
+                        .addAlias("diamond", Arrays.stream(ItemHelper.DIAMOND_ARMORS).map(ItemTarget::new).toList())
+                        .addAlias("netherite", Arrays.stream(ItemHelper.NETHERITE_ARMORS).map(ItemTarget::new).toList())
         );
     }
 
     @Override
     protected void call(AltoClef mod, ArgParser parser) throws CommandException {
-        List<ItemTarget> items = parser.get(List.class);
+        List<ItemTarget> items = parser.getList(ItemTarget.class);
 
         for (ItemTarget target : items) {
             for (Item item : target.getMatches()) {
-                if (!(item instanceof Equipment)) {
+                if (!ItemComponentHelper.isEquippable(item)) {
                     throw new RuntimeCommandException("'"+item.toString().toUpperCase() + "' cannot be equipped!");
                 }
             }
@@ -47,32 +46,21 @@ public class EquipCommand extends Command {
 
 
     // this is kinda meh way to do it
-    private static class EquipmentItemArg extends CataloguedItemArg {
+    private static class EquipmentItemArg extends ItemTargetArg {
 
         public EquipmentItemArg(String name) {
             super(name);
         }
 
         @Override
-        protected StringParser<String> getParser() {
+        protected StringParser<ItemTarget> getParser() {
             return this::parseLocal;
         }
 
-        private String parseLocal(StringReader reader) throws CommandException {
-            StringParser<String> parentParser = super.getParser();
-
-            ParseResult result = getSupplied(reader.copy(), parentParser);
-            if (result == ParseResult.NOT_FINISHED) {
-                String first = reader.peek();
-                if (getSuggestions(null).noneMatch(s -> s.startsWith(first))) {
-                    throw new BadCommandSyntaxException("Not equipment named '"+first+"' exists");
-                }
-            }
-
-            String parsed = parentParser.parse(reader);
-
-            if (!isEquipment(parsed)) {
-                throw new BadCommandSyntaxException("Item '"+parsed+"' is not an equipment");
+        private ItemTarget parseLocal(StringReader reader) throws CommandException {
+            ItemTarget parsed = super.getParser().parse(reader);
+            if (Arrays.stream(parsed.getMatches()).noneMatch(ItemComponentHelper::isEquippable)) {
+                throw new BadCommandSyntaxException("Item '" + parsed + "' is not equipment");
             }
 
             return parsed;
@@ -80,11 +68,8 @@ public class EquipCommand extends Command {
 
         @Override
         public Stream<String> getSuggestions(StringReader reader) {
-            return super.getSuggestions(reader).filter(EquipmentItemArg::isEquipment);
-        }
-
-        private static boolean isEquipment(String cataloguedItem) {
-            return Arrays.stream(new ItemTarget(cataloguedItem).getMatches()).anyMatch(i -> i instanceof Equipment);
+            return super.getSuggestions(reader).filter(suggestion ->
+                    Arrays.stream(new ItemTarget(suggestion).getMatches()).anyMatch(ItemComponentHelper::isEquippable));
         }
     }
 

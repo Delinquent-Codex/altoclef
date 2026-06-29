@@ -3,13 +3,12 @@ package adris.altoclef.trackers;
 import adris.altoclef.AltoClef;
 import adris.altoclef.util.Dimension;
 import adris.altoclef.util.helpers.WorldHelper;
-import net.minecraft.block.Block;
-import net.minecraft.block.Blocks;
-import net.minecraft.util.math.BlockPos;
-
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Optional;
+import net.minecraft.core.BlockPos;
+import net.minecraft.world.level.block.Block;
+import net.minecraft.world.level.block.Blocks;
 
 /**
  * Sometimes we want to track specific block related things, like the last nether portal we used.
@@ -36,18 +35,18 @@ public class MiscBlockTracker {
         }
 
         if (AltoClef.inGame() && newDimensionTriggered) {
-            for (BlockPos check : WorldHelper.scanRegion(mod.getPlayer().getBlockPos().add(-1,-1,-1), mod.getPlayer().getBlockPos().add(1,1,1))) {
+            for (BlockPos check : WorldHelper.scanRegion(mod.getPlayer().blockPosition().offset(-1,-1,-1), mod.getPlayer().blockPosition().offset(1,1,1))) {
                 Block currentBlock = mod.getWorld().getBlockState(check).getBlock();
                 if (currentBlock == Blocks.NETHER_PORTAL) {
                     // Make sure we get the lowest nether portal, as we can only really enter from the bottom.
                     while (check.getY() > 0) {
-                        if (mod.getWorld().getBlockState(check.down()).getBlock() == Blocks.NETHER_PORTAL) {
-                            check = check.down();
+                        if (mod.getWorld().getBlockState(check.below()).getBlock() == Blocks.NETHER_PORTAL) {
+                            check = check.below();
                         } else {
                             break;
                         }
                     }
-                    BlockPos below = check.down();
+                    BlockPos below = check.below();
                     if (WorldHelper.isSolidBlock(below)) {
                         lastNetherPortalsUsed.put(WorldHelper.getCurrentDimension(), check);
                         newDimensionTriggered = false;

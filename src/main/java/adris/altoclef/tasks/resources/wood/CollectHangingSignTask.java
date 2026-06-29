@@ -5,7 +5,7 @@ import adris.altoclef.tasks.resources.CraftWithMatchingStrippedLogsTask;
 import adris.altoclef.util.CraftingRecipe;
 import adris.altoclef.util.ItemTarget;
 import adris.altoclef.util.helpers.ItemHelper;
-import net.minecraft.item.Item;
+import net.minecraft.world.item.Item;
 
 public class CollectHangingSignTask extends CraftWithMatchingStrippedLogsTask {
 
@@ -22,9 +22,6 @@ public class CollectHangingSignTask extends CraftWithMatchingStrippedLogsTask {
         this(ItemHelper.WOOD_HANGING_SIGN, TaskCatalogue.getItemTarget("stripped_logs", 1), count);
 
 
-        //#if MC <= 11802
-        //$$ throw new IllegalStateException("Hanging signs dont exist yet!");
-        //#endif
     }
 
 

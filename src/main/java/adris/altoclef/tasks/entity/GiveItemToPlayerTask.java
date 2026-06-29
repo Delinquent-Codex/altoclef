@@ -11,14 +11,13 @@ import adris.altoclef.util.ItemTarget;
 import adris.altoclef.util.helpers.LookHelper;
 import adris.altoclef.util.helpers.StorageHelper;
 import adris.altoclef.util.slots.Slot;
-import net.minecraft.screen.slot.SlotActionType;
-import net.minecraft.util.math.BlockPos;
-import net.minecraft.util.math.Vec3d;
-
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Optional;
+import net.minecraft.core.BlockPos;
+import net.minecraft.world.inventory.ContainerInput;
+import net.minecraft.world.phys.Vec3;
 
 public class GiveItemToPlayerTask extends Task {
 
@@ -27,7 +26,7 @@ public class GiveItemToPlayerTask extends Task {
 
     private final CataloguedResourceTask resourceTask;
     private final List<ItemTarget> throwTarget = new ArrayList<>();
-    private Vec3d targetPos;
+    private Vec3 targetPos;
     private boolean droppingItems;
     private boolean atGoal;
     private GotoTarget cords = null;
@@ -64,7 +63,7 @@ public class GiveItemToPlayerTask extends Task {
         }
 
         if (cords == null) {
-            Optional<Vec3d> lastPos = mod.getEntityTracker().getPlayerMostRecentPosition(playerName);
+            Optional<Vec3> lastPos = mod.getEntityTracker().getPlayerMostRecentPosition(playerName);
             if (lastPos.isEmpty()) {
                 setDebugState("No player found/detected. Doing nothing until player loads into render distance.");
                 return null;
@@ -83,7 +82,7 @@ public class GiveItemToPlayerTask extends Task {
                 atGoal = true;
                 return new GetToBlockTask(new BlockPos(cords.getX(), cords.getY(), cords.getZ()), cords.getDimension());
             }
-            Optional<Vec3d> lastPos = mod.getEntityTracker().getPlayerMostRecentPosition(playerName);
+            Optional<Vec3> lastPos = mod.getEntityTracker().getPlayerMostRecentPosition(playerName);
             if (lastPos.isEmpty()) {
                 setDebugState("No player found/detected. Doing nothing until player loads into render distance.");
                 return null;
@@ -110,14 +109,14 @@ public class GiveItemToPlayerTask extends Task {
                 LookHelper.lookAt(mod, targetPos);
 
                 //Throws entire stack of items
-                mod.getSlotHandler().clickSlot(slot, 1, SlotActionType.THROW);
+                mod.getSlotHandler().clickSlot(slot, 1, ContainerInput.THROW);
             }
             mod.log("Finished giving items.");
             stop();
             return null;
         }
 
-        if (targetPos.isInRange(mod.getPlayer().getPos(), 4)) {
+        if (targetPos.closerThan(mod.getPlayer().position(), 4)) {
             if (!mod.getEntityTracker().isPlayerLoaded(playerName)) {
                 mod.logWarning("Failed to get to player \"" + playerName + "\". We moved to where we last saw them but now have no idea where they are.");
                 stop();

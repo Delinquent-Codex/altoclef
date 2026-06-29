@@ -1,11 +1,10 @@
 package adris.altoclef.eventbus;
 
-import net.minecraft.util.Pair;
-
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.function.Consumer;
+import adris.altoclef.compat.Tuple;
 
 /**
  * A static class to solve dependency issues. Lets us send and receive events globally, decoupling our codebase.
@@ -16,15 +15,15 @@ import java.util.function.Consumer;
 public class EventBus {
 
     private static final HashMap<Class, List<Subscription>> topics = new HashMap<>();
-    private static final List<Pair<Class, Subscription>> toAdd = new ArrayList<>();
+    private static final List<Tuple<Class, Subscription>> toAdd = new ArrayList<>();
     private static boolean lock;
 
     public static <T> void publish(T event) {
         Class type = event.getClass();
 
         // Add all subscriptions we need to add
-        for (Pair<Class, Subscription> toAdd : toAdd) {
-            subscribeInternal(toAdd.getLeft(), toAdd.getRight());
+        for (Tuple<Class, Subscription> toAdd : toAdd) {
+            subscribeInternal(toAdd.getA(), toAdd.getB());
         }
         toAdd.clear();
 
@@ -65,7 +64,7 @@ public class EventBus {
     public static <T> Subscription<T> subscribe(Class<T> type, Consumer<T> consumeEvent) {
         Subscription<T> sub = new Subscription<>(consumeEvent);
         if (lock) {
-            toAdd.add(new Pair<>(type, sub));
+            toAdd.add(new Tuple<>(type, sub));
         } else {
             subscribeInternal(type, sub);
         }

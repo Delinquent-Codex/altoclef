@@ -1,15 +1,11 @@
 package adris.altoclef.multiversion;
 
-import net.minecraft.client.MinecraftClient;
+import net.minecraft.client.Minecraft;
 
 public class InGameHudVer {
 
     public static boolean shouldShowDebugHud() {
-        //#if MC > 12001
-        return MinecraftClient.getInstance().inGameHud.getDebugHud().shouldShowDebugHud();
-        //#else
-        //$$ return MinecraftClient.getInstance().options.debugEnabled;
-        //#endif
+        return Minecraft.getInstance().gui.hud.getDebugOverlay().showDebugScreen();
     }
 
 }

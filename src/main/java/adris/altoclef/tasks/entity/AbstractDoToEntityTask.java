@@ -13,13 +13,12 @@ import adris.altoclef.util.helpers.StorageHelper;
 import adris.altoclef.util.progresscheck.MovementProgressChecker;
 import adris.altoclef.util.slots.Slot;
 import baritone.api.pathing.goals.GoalRunAway;
-import net.minecraft.entity.Entity;
-import net.minecraft.item.ItemStack;
-import net.minecraft.screen.slot.SlotActionType;
-import net.minecraft.util.hit.EntityHitResult;
-import net.minecraft.util.hit.HitResult;
-
 import java.util.Optional;
+import net.minecraft.world.entity.Entity;
+import net.minecraft.world.inventory.ContainerInput;
+import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.phys.EntityHitResult;
+import net.minecraft.world.phys.HitResult;
 
 /**
  * Interacts with an entity while maintaining distance.
@@ -55,14 +54,14 @@ public abstract class AbstractDoToEntityTask extends Task implements ITaskRequir
         ItemStack cursorStack = StorageHelper.getItemStackInCursorSlot();
         if (!cursorStack.isEmpty()) {
             Optional<Slot> moveTo = mod.getItemStorage().getSlotThatCanFitInPlayerInventory(cursorStack, false);
-            moveTo.ifPresent(slot -> mod.getSlotHandler().clickSlot(slot, 0, SlotActionType.PICKUP));
+            moveTo.ifPresent(slot -> mod.getSlotHandler().clickSlot(slot, 0, ContainerInput.PICKUP));
             if (ItemHelper.canThrowAwayStack(mod, cursorStack)) {
-                mod.getSlotHandler().clickSlot(Slot.UNDEFINED, 0, SlotActionType.PICKUP);
+                mod.getSlotHandler().clickSlot(Slot.UNDEFINED, 0, ContainerInput.PICKUP);
             }
             Optional<Slot> garbage = StorageHelper.getGarbageSlot(mod);
             // Try throwing away cursor slot if it's garbage
-            garbage.ifPresent(slot -> mod.getSlotHandler().clickSlot(slot, 0, SlotActionType.PICKUP));
-            mod.getSlotHandler().clickSlot(Slot.UNDEFINED, 0, SlotActionType.PICKUP);
+            garbage.ifPresent(slot -> mod.getSlotHandler().clickSlot(slot, 0, ContainerInput.PICKUP));
+            mod.getSlotHandler().clickSlot(Slot.UNDEFINED, 0, ContainerInput.PICKUP);
         } else {
             StorageHelper.closeScreen();
         } // Kinda duct tape but it should be future proof ish
@@ -94,7 +93,7 @@ public abstract class AbstractDoToEntityTask extends Task implements ITaskRequir
             // TODO: This is basically useless.
             EntityHitResult result = LookHelper.raycast(mod.getPlayer(), entity, playerReach);
 
-            double sqDist = entity.squaredDistanceTo(mod.getPlayer());
+            double sqDist = entity.distanceToSqr(mod.getPlayer());
 
             if (sqDist < combatGuardLowerRange * combatGuardLowerRange) {
                 mod.getMobDefenseChain().setForceFieldRange(combatGuardLowerFieldRadius);
@@ -109,7 +108,7 @@ public abstract class AbstractDoToEntityTask extends Task implements ITaskRequir
 
             // Step away if we're too close
             if (tooClose && !mod.getClientBaritone().getCustomGoalProcess().isActive()) {
-                mod.getClientBaritone().getCustomGoalProcess().setGoalAndPath(new GoalRunAway(maintainDistance, entity.getBlockPos()));
+                mod.getClientBaritone().getCustomGoalProcess().setGoalAndPath(new GoalRunAway(maintainDistance, entity.blockPosition()));
             }
 
             if (mod.getControllerExtras().inRange(entity) && result != null &&
@@ -117,7 +116,7 @@ public abstract class AbstractDoToEntityTask extends Task implements ITaskRequir
                     !mod.getMLGBucketChain().isFalling(mod) && mod.getMLGBucketChain().doneMLG() &&
                     !mod.getMLGBucketChain().isChorusFruiting() &&
                     mod.getClientBaritone().getPathingBehavior().isSafeToCancel() &&
-                    mod.getPlayer().isOnGround()) {
+                    mod.getPlayer().onGround()) {
                 progress.reset();
                 return onEntityInteract(mod, entity);
             } else if (!tooClose) {

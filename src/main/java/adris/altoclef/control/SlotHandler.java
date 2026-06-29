@@ -3,17 +3,28 @@ package adris.altoclef.control;
 import adris.altoclef.AltoClef;
 import adris.altoclef.Debug;
 import adris.altoclef.util.ItemTarget;
+import adris.altoclef.util.helpers.ItemComponentHelper;
 import adris.altoclef.util.helpers.ItemHelper;
 import adris.altoclef.util.helpers.StorageHelper;
 import adris.altoclef.util.slots.CursorSlot;
 import adris.altoclef.util.slots.PlayerSlot;
 import adris.altoclef.util.slots.Slot;
 import adris.altoclef.util.time.TimerGame;
-import net.minecraft.client.MinecraftClient;
-import net.minecraft.client.network.ClientPlayerEntity;
-import net.minecraft.item.*;
-import net.minecraft.screen.slot.SlotActionType;
-
+import net.minecraft.client.Minecraft;
+import net.minecraft.client.player.LocalPlayer;
+import net.minecraft.world.item.*;
+import net.minecraft.world.inventory.ContainerInput;
+import net.minecraft.world.item.BucketItem;
+import net.minecraft.world.item.EmptyMapItem;
+import net.minecraft.world.item.EnderEyeItem;
+import net.minecraft.world.item.FireworkRocketItem;
+import net.minecraft.world.item.FishingRodItem;
+import net.minecraft.world.item.FoodOnAStickItem;
+import net.minecraft.world.item.Item;
+import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.Items;
+import net.minecraft.world.item.PotionItem;
+import net.minecraft.world.item.SpawnEggItem;
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
@@ -50,11 +61,11 @@ public class SlotHandler {
     }
 
 
-    public void clickSlot(Slot slot, int mouseButton, SlotActionType type) {
+    public void clickSlot(Slot slot, int mouseButton, ContainerInput type) {
         if (!canDoSlotAction()) return;
 
         if (slot.getWindowSlot() == -1) {
-            clickSlot(PlayerSlot.UNDEFINED, 0, SlotActionType.PICKUP);
+            clickSlot(PlayerSlot.UNDEFINED, 0, ContainerInput.PICKUP);
             return;
         }
         // NOT THE CASE! We may have something in the cursor slot to place.
@@ -63,21 +74,21 @@ public class SlotHandler {
         clickWindowSlot(slot.getWindowSlot(), mouseButton, type);
     }
 
-    private void clickSlotForce(Slot slot, int mouseButton, SlotActionType type) {
+    private void clickSlotForce(Slot slot, int mouseButton, ContainerInput type) {
         forceAllowNextSlotAction();
         clickSlot(slot, mouseButton, type);
     }
 
-    private void clickWindowSlot(int windowSlot, int mouseButton, SlotActionType type) {
-        ClientPlayerEntity player = MinecraftClient.getInstance().player;
+    private void clickWindowSlot(int windowSlot, int mouseButton, ContainerInput type) {
+        LocalPlayer player = Minecraft.getInstance().player;
         if (player == null) {
             return;
         }
         registerSlotAction();
-        int syncId = player.currentScreenHandler.syncId;
+        int syncId = player.containerMenu.containerId;
 
         try {
-            mod.getController().clickSlot(syncId, windowSlot, mouseButton, type, player);
+            mod.getController().handleContainerInput(syncId, windowSlot, mouseButton, type, player);
         } catch (Exception e) {
             Debug.logWarning("Slot Click Error (ignored)");
             e.printStackTrace();
@@ -92,9 +103,9 @@ public class SlotHandler {
                 toEquip);
         for (Slot CurrentItemSlot : currentItemSlot) {
             if (!Slot.isCursor(CurrentItemSlot)) {
-                mod.getSlotHandler().clickSlot(CurrentItemSlot, 0, SlotActionType.PICKUP);
+                mod.getSlotHandler().clickSlot(CurrentItemSlot, 0, ContainerInput.PICKUP);
             } else {
-                mod.getSlotHandler().clickSlot(PlayerSlot.OFFHAND_SLOT, 0, SlotActionType.PICKUP);
+                mod.getSlotHandler().clickSlot(PlayerSlot.OFFHAND_SLOT, 0, ContainerInput.PICKUP);
             }
         }
     }
@@ -105,7 +116,7 @@ public class SlotHandler {
         if (StorageHelper.getItemStackInSlot(PlayerSlot.getEquipSlot()).getItem() == toEquip) return true;
 
         // Always equip to the second slot. First + last is occupied by baritone.
-        mod.getPlayer().getInventory().selectedSlot = 1;
+        mod.getPlayer().getInventory().setSelectedSlot(1);
 
         // If our item is in our cursor, simply move it to the hotbar.
         boolean inCursor = StorageHelper.getItemStackInSlot(CursorSlot.SLOT).getItem() == toEquip;
@@ -115,7 +126,7 @@ public class SlotHandler {
             for (Slot ItemSlots : itemSlots) {
                 int hotbar = 1;
                 //_mod.getPlayer().getInventory().swapSlotWithHotbar();
-                clickSlotForce(Objects.requireNonNull(ItemSlots), inCursor ? 0 : hotbar, inCursor ? SlotActionType.PICKUP : SlotActionType.SWAP);
+                clickSlotForce(Objects.requireNonNull(ItemSlots), inCursor ? 0 : hotbar, inCursor ? ContainerInput.PICKUP : ContainerInput.SWAP);
                 //registerSlotAction();
             }
             return true;
@@ -124,7 +135,7 @@ public class SlotHandler {
     }
 
     public boolean forceDeequipHitTool() {
-        return forceDeequip(stack -> stack.getItem() instanceof ToolItem);
+        return forceDeequip(ItemComponentHelper::isTool);
     }
 
     public void forceDeequipRightClickableItem() {
@@ -145,10 +156,10 @@ public class SlotHandler {
                             || item == Items.WRITABLE_BOOK
                             || item == Items.WRITTEN_BOOK
                             || item instanceof FishingRodItem
-                            || item instanceof OnAStickItem
+                            || item instanceof FoodOnAStickItem
                             || item == Items.COMPASS
                             || item instanceof EmptyMapItem
-                            || item instanceof Equipment
+                            || ItemComponentHelper.isEquippable(item)
                             || item == Items.LEAD
                             || item == Items.SHIELD;
                 }
@@ -171,28 +182,28 @@ public class SlotHandler {
                 // Try to swap items with the first non-bad slot.
                 for (Slot slot : Slot.getCurrentScreenSlots()) {
                     if (!isBad.test(StorageHelper.getItemStackInSlot(slot))) {
-                        clickSlotForce(slot, 0, SlotActionType.PICKUP);
+                        clickSlotForce(slot, 0, ContainerInput.PICKUP);
                         return false;
                     }
                 }
                 if (ItemHelper.canThrowAwayStack(mod, cursor)) {
-                    clickSlotForce(PlayerSlot.UNDEFINED, 0, SlotActionType.PICKUP);
+                    clickSlotForce(PlayerSlot.UNDEFINED, 0, ContainerInput.PICKUP);
                     return true;
                 }
                 // Can't throw :(
                 return false;
             } else {
                 // Put in the empty/available slot.
-                clickSlotForce(fittableSlots.get(), 0, SlotActionType.PICKUP);
+                clickSlotForce(fittableSlots.get(), 0, ContainerInput.PICKUP);
                 return true;
             }
         } else if (isBad.test(equip)) {
             // Pick up the item
-            clickSlotForce(PlayerSlot.getEquipSlot(), 0, SlotActionType.PICKUP);
+            clickSlotForce(PlayerSlot.getEquipSlot(), 0, ContainerInput.PICKUP);
             return false;
         } else if (equip.isEmpty() && !cursor.isEmpty()) {
             // cursor is good and equip is empty, so finish filling it in.
-            clickSlotForce(PlayerSlot.getEquipSlot(), 0, SlotActionType.PICKUP);
+            clickSlotForce(PlayerSlot.getEquipSlot(), 0, ContainerInput.PICKUP);
             return true;
         }
         // We're already de-equipped
@@ -201,7 +212,7 @@ public class SlotHandler {
 
     public void forceEquipSlot(Slot slot) {
         Slot target = PlayerSlot.getEquipSlot();
-        clickSlotForce(slot, target.getInventorySlot(), SlotActionType.SWAP);
+        clickSlotForce(slot, target.getInventorySlot(), ContainerInput.SWAP);
     }
 
     public boolean forceEquipItem(Item[] matches, boolean unInterruptable) {
@@ -234,12 +245,12 @@ public class SlotHandler {
     }
 
     public void refreshInventory() {
-        if (MinecraftClient.getInstance().player == null)
+        if (Minecraft.getInstance().player == null)
             return;
-        for (int i = 0; i < MinecraftClient.getInstance().player.getInventory().main.size(); ++i) {
+        for (int i = 0; i < Minecraft.getInstance().player.getInventory().getContainerSize(); ++i) {
             Slot slot = Slot.getFromCurrentScreenInventory(i);
-            clickSlotForce(slot, 0, SlotActionType.PICKUP);
-            clickSlotForce(slot, 0, SlotActionType.PICKUP);
+            clickSlotForce(slot, 0, ContainerInput.PICKUP);
+            clickSlotForce(slot, 0, ContainerInput.PICKUP);
         }
     }
 }

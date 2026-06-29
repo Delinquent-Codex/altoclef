@@ -14,13 +14,12 @@ import adris.altoclef.util.helpers.StorageHelper;
 import adris.altoclef.util.helpers.WorldHelper;
 import adris.altoclef.util.slots.Slot;
 import adris.altoclef.util.time.TimerGame;
-import net.minecraft.block.Block;
-import net.minecraft.screen.slot.SlotActionType;
-import net.minecraft.util.math.BlockPos;
-import net.minecraft.util.math.Vec3d;
-
 import java.util.Arrays;
 import java.util.Optional;
+import net.minecraft.core.BlockPos;
+import net.minecraft.world.inventory.ContainerInput;
+import net.minecraft.world.level.block.Block;
+import net.minecraft.world.phys.Vec3;
 
 
 /**
@@ -82,7 +81,7 @@ public abstract class DoStuffInContainerTask extends Task {
 
         Optional<BlockPos> nearest;
 
-        Vec3d currentPos = mod.getPlayer().getPos();
+        Vec3 currentPos = mod.getPlayer().position();
         BlockPos override = overrideContainerPosition(mod);
 
         if (override != null && mod.getBlockScanner().isBlockAtPosition(override, containerBlocks)) {
@@ -146,10 +145,10 @@ public abstract class DoStuffInContainerTask extends Task {
                 return new EnsureFreeInventorySlotTask();
             }
             if (ItemHelper.canThrowAwayStack(mod, StorageHelper.getItemStackInCursorSlot())) {
-                mod.getSlotHandler().clickSlot(Slot.UNDEFINED, 0, SlotActionType.PICKUP);
+                mod.getSlotHandler().clickSlot(Slot.UNDEFINED, 0, ContainerInput.PICKUP);
                 return null;
             }
-            mod.getSlotHandler().clickSlot(toMoveTo.get(), 0, SlotActionType.PICKUP);
+            mod.getSlotHandler().clickSlot(toMoveTo.get(), 0, ContainerInput.PICKUP);
             return null;
         }
         return openTableTask;

@@ -1,14 +1,19 @@
 package adris.altoclef.util.slots;
 
 import adris.altoclef.Debug;
-import net.minecraft.client.MinecraftClient;
-import net.minecraft.client.gui.screen.Screen;
-import net.minecraft.client.gui.screen.ingame.*;
-import net.minecraft.client.network.ClientPlayerEntity;
-import net.minecraft.screen.GenericContainerScreenHandler;
-import net.minecraft.screen.PlayerScreenHandler;
-import net.minecraft.screen.ScreenHandler;
-
+import net.minecraft.client.Minecraft;
+import net.minecraft.client.gui.screens.inventory.*;
+import net.minecraft.client.gui.screens.Screen;
+import net.minecraft.client.gui.screens.inventory.BlastFurnaceScreen;
+import net.minecraft.client.gui.screens.inventory.ContainerScreen;
+import net.minecraft.client.gui.screens.inventory.CraftingScreen;
+import net.minecraft.client.gui.screens.inventory.FurnaceScreen;
+import net.minecraft.client.gui.screens.inventory.SmithingScreen;
+import net.minecraft.client.gui.screens.inventory.SmokerScreen;
+import net.minecraft.client.player.LocalPlayer;
+import net.minecraft.world.inventory.AbstractContainerMenu;
+import net.minecraft.world.inventory.ChestMenu;
+import net.minecraft.world.inventory.InventoryMenu;
 import java.util.Iterator;
 import java.util.Objects;
 
@@ -68,14 +73,14 @@ public abstract class Slot {
     }
 
     private static ContainerType getCurrentType() {
-        Screen screen = MinecraftClient.getInstance().currentScreen;
+        Screen screen = Minecraft.getInstance().gui.screen();
         if (screen instanceof FurnaceScreen || screen instanceof SmithingScreen || screen instanceof SmokerScreen ||
                 screen instanceof BlastFurnaceScreen) {
             return ContainerType.FURNACE_OR_SMITH_OR_SMOKER_OR_BLAST;
         }
-        if (screen instanceof GenericContainerScreen) {
-            GenericContainerScreenHandler handler = ((GenericContainerScreen) screen).getScreenHandler();
-            boolean big = (handler.getRows() == 6);
+        if (screen instanceof ContainerScreen) {
+            ChestMenu handler = ((ContainerScreen) screen).getMenu();
+            boolean big = (handler.getRowCount() == 6);
             return big ? ContainerType.CHEST_LARGE : ContainerType.CHEST_SMALL;
         }
         if (screen instanceof CraftingScreen) {
@@ -90,8 +95,8 @@ public abstract class Slot {
 
     public static Iterable<Slot> getCurrentScreenSlots() {
         return () -> new Iterator<>() {
-            final ClientPlayerEntity player = MinecraftClient.getInstance().player;
-            final ScreenHandler handler = player != null ? player.currentScreenHandler : null;
+            final LocalPlayer player = Minecraft.getInstance().player;
+            final AbstractContainerMenu handler = player != null ? player.containerMenu : null;
             final int MAX = handler != null ? handler.slots.size() : 0;
             int i = -1;
 
@@ -158,9 +163,9 @@ public abstract class Slot {
      * @return Whether this slot exists within the player's inventory or in a container that's disconnected from the player's inventory.
      */
     public boolean isSlotInPlayerInventory() {
-        ScreenHandler handler = MinecraftClient.getInstance().player != null ? MinecraftClient.getInstance().player.currentScreenHandler : null;
+        AbstractContainerMenu handler = Minecraft.getInstance().player != null ? Minecraft.getInstance().player.containerMenu : null;
         int windowSlot = getWindowSlot();
-        if (handler instanceof PlayerScreenHandler) {
+        if (handler instanceof InventoryMenu) {
             // Everything visible is player inventory.
             return true;
         }

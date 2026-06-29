@@ -7,16 +7,19 @@ import adris.altoclef.eventbus.events.TaskFinishedEvent;
 import adris.altoclef.tasksystem.Task;
 import adris.altoclef.tasksystem.TaskRunner;
 import adris.altoclef.util.time.Stopwatch;
+import adris.altoclef.util.time.TimerGame;
 
 // A task chain that runs a user defined task at the same priority.
 // This basically replaces our old Task Runner.
 public class UserTaskChain extends SingleTaskChain {
 
     private final Stopwatch taskStopwatch = new Stopwatch();
+    private final TimerGame idleCommandRestartTimer = new TimerGame(1);
     private Runnable currentOnFinish = null;
 
     private boolean runningIdleTask;
     private boolean nextTaskIdleFlag;
+    private boolean restartIdleCommandPending;
 
     public UserTaskChain(TaskRunner runner) {
         super(runner);
@@ -50,10 +53,20 @@ public class UserTaskChain extends SingleTaskChain {
         // Pause if we're not loaded into a world.
         if (!AltoClef.inGame()) return;
 
+        if (restartIdleCommandPending) {
+            if (idleCommandRestartTimer.elapsed()) {
+                restartIdleCommandPending = false;
+                signalNextTaskToBeIdleTask();
+                AltoClef.getCommandExecutor().executeWithPrefix(AltoClef.getInstance().getModSettings().getIdleCommand());
+            }
+            return;
+        }
+
         super.onTick();
     }
 
     public void cancel(AltoClef mod) {
+        restartIdleCommandPending = false;
         if (mainTask != null && mainTask.isActive()) {
             stop();
             onTaskFinish(mod);
@@ -76,6 +89,7 @@ public class UserTaskChain extends SingleTaskChain {
     }
 
     public void runTask(AltoClef mod, Task task, Runnable onFinish) {
+        restartIdleCommandPending = false;
         runningIdleTask = nextTaskIdleFlag;
         nextTaskIdleFlag = false;
 
@@ -106,8 +120,10 @@ public class UserTaskChain extends SingleTaskChain {
         double seconds = taskStopwatch.time();
         Task oldTask = mainTask;
         mainTask = null;
-        if (currentOnFinish != null) {
-            currentOnFinish.run();
+        Runnable onFinish = currentOnFinish;
+        currentOnFinish = null;
+        if (onFinish != null) {
+            onFinish.run();
         }
         // our `onFinish` might have triggered more tasks.
         boolean actuallyDone = mainTask == null;
@@ -117,11 +133,27 @@ public class UserTaskChain extends SingleTaskChain {
                 EventBus.publish(new TaskFinishedEvent(seconds, oldTask));
             }
             if (shouldIdle) {
-                AltoClef.getCommandExecutor().executeWithPrefix(mod.getModSettings().getIdleCommand());
-                signalNextTaskToBeIdleTask();
-                runningIdleTask = true;
+                if (runningIdleTask) {
+                    restartIdleCommandPending = true;
+                    idleCommandRestartTimer.reset();
+                } else {
+                    signalNextTaskToBeIdleTask();
+                    AltoClef.getCommandExecutor().executeWithPrefix(mod.getModSettings().getIdleCommand());
+                    runningIdleTask = true;
+                }
             }
         }
+    }
+
+    @Override
+    protected void onStop() {
+        restartIdleCommandPending = false;
+        super.onStop();
+    }
+
+    @Override
+    public boolean isActive() {
+        return restartIdleCommandPending || super.isActive();
     }
 
     public boolean isRunningIdleTask() {

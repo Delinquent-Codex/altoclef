@@ -1,9 +1,8 @@
 package adris.altoclef.util;
 
 import adris.altoclef.Debug;
-import net.minecraft.item.Item;
-
 import java.util.Arrays;
+import net.minecraft.world.item.Item;
 
 public class CraftingRecipe {
 
@@ -127,6 +126,16 @@ public class CraftingRecipe {
             return true;
         }
         return false;
+    }
+
+    @Override
+    public int hashCode() {
+        int result = Arrays.hashCode(slots);
+        result = 31 * result + width;
+        result = 31 * result + height;
+        result = 31 * result + Boolean.hashCode(shapeless);
+        result = 31 * result + outputCount;
+        return result;
     }
 
     @Override

@@ -7,10 +7,16 @@ import adris.altoclef.util.baritone.GoalFollowEntity;
 import adris.altoclef.util.helpers.WorldHelper;
 import adris.altoclef.util.progresscheck.MovementProgressChecker;
 import baritone.api.utils.input.Input;
-import net.minecraft.block.*;
+import net.minecraft.world.level.block.*;
+import net.minecraft.world.level.block.state.*;
+import net.minecraft.core.BlockPos;
+import net.minecraft.world.entity.Entity;
+import net.minecraft.world.level.block.Block;
+import net.minecraft.world.level.block.DoorBlock;
+import net.minecraft.world.level.block.FenceBlock;
+import net.minecraft.world.level.block.FenceGateBlock;
+import net.minecraft.world.level.block.FlowerBlock;
 import adris.altoclef.multiversion.versionedfields.Blocks;
-import net.minecraft.entity.Entity;
-import net.minecraft.util.math.BlockPos;
 
 public class GetToEntityTask extends Task implements ITaskRequiresGrounded {
     private final MovementProgressChecker stuckCheck = new MovementProgressChecker();
@@ -47,14 +53,14 @@ public class GetToEntityTask extends Task implements ITaskRequiresGrounded {
 
     private static BlockPos[] generateSides(BlockPos pos) {
         return new BlockPos[]{
-                pos.add(1,0,0),
-                pos.add(-1,0,0),
-                pos.add(0,0,1),
-                pos.add(0,0,-1),
-                pos.add(1,0,-1),
-                pos.add(1,0,1),
-                pos.add(-1,0,-1),
-                pos.add(-1,0,1)
+                pos.offset(1,0,0),
+                pos.offset(-1,0,0),
+                pos.offset(0,0,1),
+                pos.offset(0,0,-1),
+                pos.offset(1,0,-1),
+                pos.offset(1,0,1),
+                pos.offset(-1,0,-1),
+                pos.offset(-1,0,1)
         };
     }
 
@@ -73,16 +79,16 @@ public class GetToEntityTask extends Task implements ITaskRequiresGrounded {
 
     // This happens all the time in mineshafts and swamps/jungles
     private BlockPos stuckInBlock(AltoClef mod) {
-        BlockPos p = mod.getPlayer().getBlockPos();
+        BlockPos p = mod.getPlayer().blockPosition();
         if (isAnnoying(mod, p)) return p;
-        if (isAnnoying(mod, p.up())) return p.up();
+        if (isAnnoying(mod, p.above())) return p.above();
         BlockPos[] toCheck = generateSides(p);
         for (BlockPos check : toCheck) {
             if (isAnnoying(mod, check)) {
                 return check;
             }
         }
-        BlockPos[] toCheckHigh = generateSides(p.up());
+        BlockPos[] toCheckHigh = generateSides(p.above());
         for (BlockPos check : toCheckHigh) {
             if (isAnnoying(mod, check)) {
                 return check;
@@ -154,7 +160,7 @@ public class GetToEntityTask extends Task implements ITaskRequiresGrounded {
             mod.getClientBaritone().getCustomGoalProcess().setGoalAndPath(new GoalFollowEntity(_entity, _closeEnoughDistance));
         }
 
-        if (mod.getPlayer().isInRange(_entity, _closeEnoughDistance)) {
+        if (mod.getPlayer().closerThan(_entity, _closeEnoughDistance)) {
             _progress.reset();
         }
 
@@ -181,6 +187,6 @@ public class GetToEntityTask extends Task implements ITaskRequiresGrounded {
 
     @Override
     protected String toDebugString() {
-        return "Approach entity " + _entity.getType().getTranslationKey();
+        return "Approach entity " + _entity.getType().getDescriptionId();
     }
 }

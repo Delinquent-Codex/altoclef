@@ -3,8 +3,8 @@ package adris.altoclef.tasks.movement;
 import adris.altoclef.AltoClef;
 import adris.altoclef.tasksystem.Task;
 import adris.altoclef.util.helpers.WorldHelper;
-import net.minecraft.util.math.BlockPos;
-import net.minecraft.world.biome.BiomeKeys;
+import net.minecraft.core.BlockPos;
+import net.minecraft.world.level.biome.Biomes;
 
 public class LocateDesertTempleTask extends Task {
 
@@ -18,13 +18,13 @@ public class LocateDesertTempleTask extends Task {
     protected Task onTick() {
         BlockPos desertTemplePos = WorldHelper.getADesertTemple();
         if (desertTemplePos != null) {
-            _finalPos = desertTemplePos.up(14);
+            _finalPos = desertTemplePos.above(14);
         }
         if (_finalPos != null) {
             setDebugState("Going to found desert temple");
             return new GetToBlockTask(_finalPos, false);
         }
-        return new SearchWithinBiomeTask(BiomeKeys.DESERT);
+        return new SearchWithinBiomeTask(Biomes.DESERT);
     }
 
     @Override
@@ -43,6 +43,6 @@ public class LocateDesertTempleTask extends Task {
 
     @Override
     public boolean isFinished() {
-        return AltoClef.getInstance().getPlayer().getBlockPos().equals(_finalPos);
+        return AltoClef.getInstance().getPlayer().blockPosition().equals(_finalPos);
     }
 }

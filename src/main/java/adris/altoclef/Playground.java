@@ -24,24 +24,20 @@ import adris.altoclef.tasks.speedrun.KillEnderDragonWithBedsTask;
 import adris.altoclef.tasks.speedrun.WaitForDragonAndPearlTask;
 import adris.altoclef.util.*;
 import adris.altoclef.util.helpers.WorldHelper;
-import net.minecraft.block.Block;
-import net.minecraft.block.Blocks;
-import net.minecraft.entity.Entity;
-import net.minecraft.entity.LivingEntity;
-import net.minecraft.entity.mob.GhastEntity;
-import net.minecraft.entity.mob.ZombieEntity;
-import net.minecraft.item.Item;
-import net.minecraft.item.Items;
-import net.minecraft.registry.Registries;
-import net.minecraft.util.Identifier;
-import net.minecraft.util.math.BlockPos;
-import net.minecraft.util.math.Vec3i;
-import net.minecraft.world.chunk.EmptyChunk;
-
 import java.io.*;
 import java.util.List;
 import java.util.Optional;
 import java.util.Scanner;
+import net.minecraft.core.BlockPos;
+import net.minecraft.core.registries.BuiltInRegistries;
+import net.minecraft.resources.Identifier;
+import net.minecraft.world.entity.LivingEntity;
+import net.minecraft.world.entity.monster.Ghast;
+import net.minecraft.world.entity.monster.zombie.Zombie;
+import net.minecraft.world.item.Item;
+import net.minecraft.world.item.Items;
+import net.minecraft.world.level.block.Blocks;
+import net.minecraft.world.level.chunk.EmptyLevelChunk;
 
 /**
  * For testing.
@@ -128,7 +124,7 @@ public class Playground {
             case "chunk": {
                 // We may have missed a chunk that's far away...
                 BlockPos p = new BlockPos(100000, 3, 100000);
-                Debug.logMessage("LOADED? " + (!(mod.getWorld().getChunk(p) instanceof EmptyChunk)));
+                Debug.logMessage("LOADED? " + (!(mod.getWorld().getChunk(p) instanceof EmptyLevelChunk)));
                 break;
             }
             case "structure":
@@ -190,7 +186,7 @@ public class Playground {
                 mod.runUserTask(new EnterNetherPortalTask(new ConstructNetherPortalObsidianTask(), WorldHelper.getCurrentDimension() == Dimension.OVERWORLD ? Dimension.NETHER : Dimension.OVERWORLD));
                 break;
             case "kill":
-                List<ZombieEntity> zombs = mod.getEntityTracker().getTrackedEntities(ZombieEntity.class);
+                List<Zombie> zombs = mod.getEntityTracker().getTrackedEntities(Zombie.class);
                 if (zombs.size() == 0) {
                     Debug.logWarning("No zombs found.");
                 } else {
@@ -253,11 +249,11 @@ public class Playground {
                     int total = 0;
                     File f = new File(fname);
                     FileWriter fw = new FileWriter(f);
-                    for (Identifier id : Registries.ITEM.getIds()) {
-                        Item item = Registries.ITEM.get(id);
+                    for (Identifier id : BuiltInRegistries.ITEM.keySet()) {
+                        Item item = BuiltInRegistries.ITEM.getValue(id);
                         if (!TaskCatalogue.isObtainable(item)) {
                             ++unobtainable;
-                            fw.write(item.getTranslationKey() + "\n");
+                            fw.write(item.getDescriptionId() + "\n");
                         }
                         total++;
                     }
@@ -303,14 +299,14 @@ public class Playground {
                 break;
             case "arrow":
 
-                List<GhastEntity> ghasts = mod.getEntityTracker().getTrackedEntities(GhastEntity.class);
+                List<Ghast> ghasts = mod.getEntityTracker().getTrackedEntities(Ghast.class);
 
                 if (ghasts.size() == 0) {
                     Debug.logWarning("No ghasts found.");
                     break;
                 }
 
-                GhastEntity ghast = ghasts.get(0);
+                Ghast ghast = ghasts.get(0);
                 mod.runUserTask(new ShootArrowSimpleProjectileTask(ghast));
                 break;
             default:

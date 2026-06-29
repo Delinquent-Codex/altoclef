@@ -6,10 +6,9 @@ import adris.altoclef.multiversion.versionedfields.Items;
 import adris.altoclef.tasks.ResourceTask;
 import adris.altoclef.tasksystem.Task;
 import adris.altoclef.util.MiningRequirement;
-import net.minecraft.block.Block;
-import net.minecraft.item.Item;
-
 import java.util.Arrays;
+import net.minecraft.world.item.Item;
+import net.minecraft.world.level.block.Block;
 
 public class CollectBlockByOneTask extends ResourceTask {
 

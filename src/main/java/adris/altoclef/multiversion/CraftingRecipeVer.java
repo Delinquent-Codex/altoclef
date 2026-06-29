@@ -1,18 +1,14 @@
 package adris.altoclef.multiversion;
 
-import net.minecraft.item.ItemStack;
-import net.minecraft.recipe.CraftingRecipe;
+import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.crafting.CraftingRecipe;
 
 public class CraftingRecipeVer {
 
 
     @Pattern
     private static ItemStack getOutput(CraftingRecipe craftingRecipe) {
-        //#if MC >= 11904
-        return craftingRecipe.getResult(null);
-        //#else
-        //$$ return craftingRecipe.getOutput();
-        //#endif
+        return craftingRecipe.display().isEmpty() ? ItemStack.EMPTY : craftingRecipe.display().get(0).result().resolveForFirstStack(new net.minecraft.util.context.ContextMap.Builder().create(new net.minecraft.util.context.ContextKeySet.Builder().build()));
     }
 
 }

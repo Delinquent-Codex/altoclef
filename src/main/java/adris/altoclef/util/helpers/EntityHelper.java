@@ -3,18 +3,24 @@ package adris.altoclef.util.helpers;
 import adris.altoclef.AltoClef;
 import adris.altoclef.multiversion.DamageSourceWrapper;
 import adris.altoclef.multiversion.MethodWrapper;
-import net.minecraft.enchantment.EnchantmentHelper;
-import net.minecraft.entity.DamageUtil;
-import net.minecraft.entity.Entity;
-import net.minecraft.entity.LivingEntity;
-import net.minecraft.entity.attribute.EntityAttributes;
-import net.minecraft.entity.damage.DamageSource;
-import net.minecraft.entity.effect.StatusEffects;
-import net.minecraft.entity.mob.*;
-import net.minecraft.entity.passive.IronGolemEntity;
-import net.minecraft.entity.player.PlayerEntity;
-import net.minecraft.item.ItemStack;
-import net.minecraft.item.Items;
+import net.minecraft.world.entity.monster.*;
+import net.minecraft.world.damagesource.CombatRules;
+import net.minecraft.world.damagesource.DamageSource;
+import net.minecraft.world.effect.MobEffects;
+import net.minecraft.world.entity.Entity;
+import net.minecraft.world.entity.LivingEntity;
+import net.minecraft.world.entity.Mob;
+import net.minecraft.world.entity.ai.attributes.Attributes;
+import net.minecraft.world.entity.monster.EnderMan;
+import net.minecraft.world.entity.monster.Monster;
+import net.minecraft.world.entity.monster.cubemob.Slime;
+import net.minecraft.world.entity.monster.zombie.ZombifiedPiglin;
+import net.minecraft.world.entity.monster.piglin.Piglin;
+import net.minecraft.world.entity.player.Player;
+import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.Items;
+import net.minecraft.world.item.enchantment.EnchantmentHelper;
+import net.minecraft.server.level.ServerLevel;
 
 /**
  * Helper functions to interpret entity state
@@ -25,41 +31,37 @@ public class EntityHelper {
     public static boolean isAngryAtPlayer(AltoClef mod, Entity mob) {
         boolean hostile = isProbablyHostileToPlayer(mod, mob);
         if (mob instanceof LivingEntity entity) {
-            return hostile && entity.canSee(mod.getPlayer());
+            return hostile && entity.hasLineOfSight(mod.getPlayer());
         }
         return hostile;
     }
 
     public static boolean isProbablyHostileToPlayer(AltoClef mod, Entity entity) {
-        if (entity instanceof MobEntity mob) {
-            if (mob instanceof SlimeEntity slime) {
-                return slime.getAttributeValue(EntityAttributes.GENERIC_ATTACK_DAMAGE) > 0;
+        if (entity instanceof Mob mob) {
+            if (mob instanceof Slime slime) {
+                return slime.getAttributeValue(Attributes.ATTACK_DAMAGE) > 0;
             }
-            if (mob instanceof PiglinEntity piglin) {
-                return piglin.isAttacking() && !isTradingPiglin(mob) && piglin.isAdult();
+            if (mob instanceof Piglin piglin) {
+                return piglin.isAggressive() && !isTradingPiglin(mob) && piglin.isAdult();
             }
-            if (mob instanceof EndermanEntity enderman) {
-                return enderman.isAngry();
+            if (mob instanceof EnderMan enderman) {
+                return enderman.isCreepy();
             }
-            if (mob instanceof ZombifiedPiglinEntity zombifiedPiglin) {
-                return zombifiedPiglin.isAttacking();
+            if (mob instanceof ZombifiedPiglin zombifiedPiglin) {
+                return zombifiedPiglin.isAggressive();
             }
 
-            return mob.isAttacking() || mob instanceof HostileEntity;
+            return mob.isAggressive() || mob instanceof Monster;
         }
 
         return false;
     }
 
     public static boolean isTradingPiglin(Entity entity) {
-        if (entity instanceof PiglinEntity pig) {
-            if (pig.getHandItems() != null) {
-                for (ItemStack stack : pig.getHandItems()) {
-                    if (stack.getItem().equals(Items.GOLD_INGOT)) {
-                        // We're trading with this one, ignore it.
-                        return true;
-                    }
-                }
+        if (entity instanceof Piglin pig) {
+            if (pig.getMainHandItem().is(Items.GOLD_INGOT) || pig.getOffhandItem().is(Items.GOLD_INGOT)) {
+                // We're trading with this one, ignore it.
+                return true;
             }
         }
         return false;
@@ -69,24 +71,27 @@ public class EntityHelper {
      * Calculate the resulting damage dealt to a player as a result of some damage.
      * If this player were to receive this damage, the player's health will be subtracted by the resulting value.
      */
-    public static double calculateResultingPlayerDamage(PlayerEntity player, DamageSource src, double damageAmount) {
+    public static double calculateResultingPlayerDamage(Player player, DamageSource src, double damageAmount) {
         // Copied logic from `PlayerEntity.applyDamage`
         DamageSourceWrapper source = DamageSourceWrapper.of(src);
 
-        if (player.isInvulnerableTo(src))
+        if (player.level() instanceof ServerLevel serverLevel && player.isInvulnerableTo(serverLevel, src))
+            return 0;
+
+        if (player.isInvulnerable())
             return 0;
 
         // Armor Base
         if (!source.bypassesArmor()) {
-            damageAmount = MethodWrapper.getDamageLeft(player, damageAmount,src,player.getArmor(),player.getAttributeValue(EntityAttributes.GENERIC_ARMOR_TOUGHNESS));
+            damageAmount = MethodWrapper.getDamageLeft(player, damageAmount,src,player.getArmorValue(),player.getAttributeValue(Attributes.ARMOR_TOUGHNESS));
         }
 
         // Enchantments & Potions
         if (!source.bypassesShield()) {
             float k;
-            if (player.hasStatusEffect(StatusEffects.RESISTANCE) && source.isOutOfWorld()) {
+            if (player.hasEffect(MobEffects.RESISTANCE) && source.isOutOfWorld()) {
                 //noinspection ConstantConditions
-                k = (player.getStatusEffect(StatusEffects.RESISTANCE).getAmplifier() + 1) * 5;
+                k = (player.getEffect(MobEffects.RESISTANCE).getAmplifier() + 1) * 5;
                 float j = 25 - k;
                 double f = damageAmount * (double) j;
                 double g = damageAmount;
@@ -96,13 +101,9 @@ public class EntityHelper {
             if (damageAmount <= 0.0) {
                 damageAmount = 0.0;
             } else {
-                //#if MC >= 12100
-                k = EnchantmentHelper.getProtectionAmount(null, player, src);
-                //#else
-                //$$ k = EnchantmentHelper.getProtectionAmount(player.getArmorItems(), src);
-                //#endif
+                k = EnchantmentHelper.getDamageProtection(null, player, src);
                 if (k > 0) {
-                    damageAmount = DamageUtil.getInflictedDamage((float) damageAmount, (float) k);
+                    damageAmount = CombatRules.getDamageAfterMagicAbsorb((float) damageAmount, (float) k);
                 }
             }
         }

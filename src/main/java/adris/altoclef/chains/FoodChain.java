@@ -10,19 +10,18 @@ import adris.altoclef.tasksystem.TaskRunner;
 import adris.altoclef.util.helpers.*;
 import adris.altoclef.util.slots.PlayerSlot;
 import baritone.api.utils.input.Input;
-import net.minecraft.client.MinecraftClient;
-import net.minecraft.client.network.ClientPlayerEntity;
-import net.minecraft.entity.Entity;
-import net.minecraft.entity.effect.StatusEffects;
-import net.minecraft.entity.mob.HostileEntity;
-import net.minecraft.item.Item;
-import net.minecraft.item.ItemStack;
-import net.minecraft.item.Items;
-import net.minecraft.util.Pair;
-import net.minecraft.util.math.BlockPos;
-
 import java.util.Objects;
 import java.util.Optional;
+import net.minecraft.client.Minecraft;
+import net.minecraft.client.player.LocalPlayer;
+import net.minecraft.core.BlockPos;
+import adris.altoclef.compat.Tuple;
+import net.minecraft.world.effect.MobEffects;
+import net.minecraft.world.entity.Entity;
+import net.minecraft.world.entity.monster.Monster;
+import net.minecraft.world.item.Item;
+import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.Items;
 
 @SuppressWarnings("OptionalUsedAsFieldOrParameterType")
 public class FoodChain extends SingleTaskChain {
@@ -136,12 +135,12 @@ public class FoodChain extends SingleTaskChain {
             stopEat();
             return Float.NEGATIVE_INFINITY;
         }
-        Pair<Integer, Optional<Item>> calculation = calculateFood(mod);
-        int cachedFoodScore = calculation.getLeft();
-        cachedPerfectFood = calculation.getRight();
+        Tuple<Integer, Optional<Item>> calculation = calculateFood(mod);
+        int cachedFoodScore = calculation.getA();
+        cachedPerfectFood = calculation.getB();
         hasFood = cachedFoodScore > 0;
         // If we requested a fillup but we're full, stop.
-        if (requestFillup && mod.getPlayer().getHungerManager().getFoodLevel() >= 20) {
+        if (requestFillup && mod.getPlayer().getFoodData().getFoodLevel() >= 20) {
             requestFillup = false;
         }
         // If we no longer have food, we no longer can eat.
@@ -185,7 +184,7 @@ public class FoodChain extends SingleTaskChain {
 
     private boolean areEnemiesNearby(AltoClef mod) {
         for (Entity entity : mod.getEntityTracker().getCloseEntities()) {
-            if (entity instanceof HostileEntity hostile && hostile.distanceTo(mod.getPlayer()) < (isTryingToEat?14:7)) {
+            if (entity instanceof Monster hostile && hostile.distanceTo(mod.getPlayer()) < (isTryingToEat?14:7)) {
                 return true;
             }
         }
@@ -216,9 +215,9 @@ public class FoodChain extends SingleTaskChain {
         }
 
 
-        ClientPlayerEntity player = MinecraftClient.getInstance().player;
+        LocalPlayer player = Minecraft.getInstance().player;
         assert player != null;
-        int foodLevel = player.getHungerManager().getFoodLevel();
+        int foodLevel = player.getFoodData().getFoodLevel();
         float health = player.getHealth();
 
         if (foodLevel >= 20) {
@@ -232,7 +231,7 @@ public class FoodChain extends SingleTaskChain {
         //Debug.logMessage("FOOD: " + foodLevel + " -- HEALTH: " + health);
 
         // Eat if we're desperate/need to heal ASAP
-        if (player.isOnFire() || player.hasStatusEffect(StatusEffects.WITHER) || health < config.alwaysEatWhenWitherOrFireAndHealthBelow) {
+        if (player.isOnFire() || player.hasEffect(MobEffects.WITHER) || health < config.alwaysEatWhenWitherOrFireAndHealthBelow) {
             return true;
         } else if (foodLevel > config.alwaysEatWhenBelowHunger) {
             if (health < config.alwaysEatWhenBelowHealth) {
@@ -256,15 +255,15 @@ public class FoodChain extends SingleTaskChain {
         return false;
     }
 
-    private Pair<Integer, Optional<Item>> calculateFood(AltoClef mod) {
+    private Tuple<Integer, Optional<Item>> calculateFood(AltoClef mod) {
         Item bestFood = null;
         double bestFoodScore = Double.NEGATIVE_INFINITY;
         int foodTotal = 0;
-        ClientPlayerEntity player = mod.getPlayer();
+        LocalPlayer player = mod.getPlayer();
         float health = player != null ? player.getHealth() : 20;
         //float toHeal = player != null? 20 - player.getHealth() : 0;
-        float hunger = player != null ? player.getHungerManager().getFoodLevel() : 20;
-        float saturation = player != null ? player.getHungerManager().getSaturationLevel() : 20;
+        float hunger = player != null ? player.getFoodData().getFoodLevel() : 20;
+        float saturation = player != null ? player.getFoodData().getSaturationLevel() : 20;
         // Get best food item + calculate food total
         for (ItemStack stack : mod.getItemStorage().getItemStacksPlayerInventory(true)) {
             if (ItemVer.isFood(stack)) {
@@ -308,7 +307,7 @@ public class FoodChain extends SingleTaskChain {
             }
         }
 
-        return new Pair<>(foodTotal, Optional.ofNullable(bestFood));
+        return new Tuple<>(foodTotal, Optional.ofNullable(bestFood));
     }
 
     // If we need to eat like, NOW.

@@ -8,22 +8,28 @@ import baritone.api.utils.IPlayerContext;
 import baritone.api.utils.RayTraceUtils;
 import baritone.api.utils.Rotation;
 import baritone.api.utils.RotationUtils;
-import net.minecraft.client.MinecraftClient;
-import net.minecraft.client.network.ClientPlayerEntity;
-import net.minecraft.entity.Entity;
-import net.minecraft.entity.passive.MerchantEntity;
-import net.minecraft.entity.player.PlayerEntity;
-import net.minecraft.entity.projectile.ProjectileUtil;
-import net.minecraft.item.ItemStack;
-import net.minecraft.screen.PlayerScreenHandler;
-import net.minecraft.screen.slot.SlotActionType;
-import net.minecraft.util.hit.BlockHitResult;
-import net.minecraft.util.hit.EntityHitResult;
-import net.minecraft.util.hit.HitResult;
-import net.minecraft.util.math.*;
-import net.minecraft.world.RaycastContext;
-import net.minecraft.world.World;
-
+import net.minecraft.client.Minecraft;
+import net.minecraft.client.player.LocalPlayer;
+import net.minecraft.core.BlockPos;
+import net.minecraft.core.Direction;
+import net.minecraft.core.Vec3i;
+import net.minecraft.util.Mth;
+import net.minecraft.core.*;
+import net.minecraft.world.phys.*;
+import net.minecraft.world.entity.Entity;
+import net.minecraft.world.entity.npc.villager.AbstractVillager;
+import net.minecraft.world.entity.player.Player;
+import net.minecraft.world.entity.projectile.ProjectileUtil;
+import net.minecraft.world.inventory.ContainerInput;
+import net.minecraft.world.inventory.InventoryMenu;
+import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.level.ClipContext;
+import net.minecraft.world.level.Level;
+import net.minecraft.world.phys.AABB;
+import net.minecraft.world.phys.BlockHitResult;
+import net.minecraft.world.phys.EntityHitResult;
+import net.minecraft.world.phys.HitResult;
+import net.minecraft.world.phys.Vec3;
 import java.util.Objects;
 import java.util.Optional;
 
@@ -48,29 +54,29 @@ public interface LookHelper {
         // Check if the side is null
         if (side == null) {
             // Calculate the reachable rotation from the player's position to the target position
-            reachableRotation = RotationUtils.reachable(context.player(), target, context.playerController().getBlockReachDistance());
+            reachableRotation = RotationUtils.reachable(context, target, context.playerController().getBlockReachDistance());
         } else {
             // Calculate the center offset vector based on the side direction
-            Vec3i sideVector = side.getVector();
-            Vec3d centerOffset = new Vec3d(0.5 + sideVector.getX() * 0.5, 0.5 + sideVector.getY() * 0.5,
+            Vec3i sideVector = side.getUnitVec3i();
+            Vec3 centerOffset = new Vec3(0.5 + sideVector.getX() * 0.5, 0.5 + sideVector.getY() * 0.5,
                     0.5 + sideVector.getZ() * 0.5);
 
             // Calculate the side point based on the center offset and target position
-            Vec3d sidePoint = centerOffset.add(target.getX(), target.getY(), target.getZ());
+            Vec3 sidePoint = centerOffset.add(target.getX(), target.getY(), target.getZ());
 
             // Calculate the reachable rotation from the player's position to the side point
-            reachableRotation = RotationUtils.reachableOffset(context.player(), target, sidePoint,
+            reachableRotation = RotationUtils.reachableOffset(context, target, sidePoint,
                     context.playerController().getBlockReachDistance(), false);
 
             // Check if the reachable rotation is present
             if (reachableRotation.isPresent()) {
                 // Calculate the camera position and vector to player position
-                Vec3d cameraPos = context.player().getCameraPosVec(1.0F);
-                Vec3d vecToPlayerPos = cameraPos.subtract(sidePoint);
+            Vec3 cameraPos = context.player().getEyePosition(1.0F);
+                Vec3 vecToPlayerPos = cameraPos.subtract(sidePoint);
 
                 // Calculate the dot product between the vector to player position and the side vector
-                double dotProduct = vecToPlayerPos.normalize().dotProduct(
-                        new Vec3d(sideVector.getX(), sideVector.getY(), sideVector.getZ()));
+                double dotProduct = vecToPlayerPos.normalize().dot(
+                        new Vec3(sideVector.getX(), sideVector.getY(), sideVector.getZ()));
 
                 // Check if the dot product is less than 0
                 if (dotProduct < 0) {
@@ -108,19 +114,19 @@ public interface LookHelper {
      */
     static EntityHitResult raycast(Entity from, Entity to, double reachDistance) {
         // Get the starting position of the raycast
-        Vec3d start = getCameraPos(from);
+        Vec3 start = getCameraPos(from);
 
         // Get the ending position of the raycast
-        Vec3d end = getCameraPos(to);
+        Vec3 end = getCameraPos(to);
 
         // Calculate the direction of the raycast
-        Vec3d direction = end.subtract(start).normalize().multiply(reachDistance);
+        Vec3 direction = end.subtract(start).normalize().scale(reachDistance);
 
         // Get the bounding box of the target entity
-        Box box = to.getBoundingBox();
+        AABB box = to.getBoundingBox();
 
         // Perform the raycast and return the result
-        return ProjectileUtil.raycast(from, start, start.add(direction), box, entity -> entity.equals(to), 0);
+        return ProjectileUtil.getEntityHitResult(from, start, start.add(direction), box, entity -> entity.equals(to), 0);
     }
 
     /**
@@ -133,7 +139,7 @@ public interface LookHelper {
      * @param playerOffset The offset of the player.
      * @return True if the entity can see the player, false otherwise.
      */
-    static boolean seesPlayer(Entity entity, Entity player, double maxRange, Vec3d entityOffset, Vec3d playerOffset) {
+    static boolean seesPlayer(Entity entity, Entity player, double maxRange, Vec3 entityOffset, Vec3 playerOffset) {
         return seesPlayerOffset(entity, player, maxRange, entityOffset, playerOffset)
                 || seesPlayerOffset(entity, player, maxRange, entityOffset, playerOffset.add(0, -1, 0));
     }
@@ -147,7 +153,7 @@ public interface LookHelper {
      * @return true if the player is visible within the specified range, false otherwise
      */
     static boolean seesPlayer(Entity entity, Entity player, double maxRange) {
-        return seesPlayer(entity, player, maxRange, new Vec3d(0, 0, 0), new Vec3d(0, 0, 0));
+        return seesPlayer(entity, player, maxRange, new Vec3(0, 0, 0), new Vec3(0, 0, 0));
     }
 
     /**
@@ -159,7 +165,7 @@ public interface LookHelper {
      * @param maxRange The maximum range for the line of sight.
      * @return true if there is a clear line of sight, false otherwise.
      */
-    static boolean cleanLineOfSight(Entity entity, Vec3d start, Vec3d end, double maxRange) {
+    static boolean cleanLineOfSight(Entity entity, Vec3 start, Vec3 end, double maxRange) {
         // Perform a raycast between the start and end points with the given max range
         HitResult result = raycast(entity, start, end, maxRange);
 
@@ -175,9 +181,9 @@ public interface LookHelper {
      * @param maxRange The maximum range at which the line of sight can be checked.
      * @return True if there is a clear line of sight, false otherwise.
      */
-    static boolean cleanLineOfSight(Entity entity, Vec3d end, double maxRange) {
+    static boolean cleanLineOfSight(Entity entity, Vec3 end, double maxRange) {
         // Get the starting position of the line of sight
-        Vec3d start = getCameraPos(entity);
+        Vec3 start = getCameraPos(entity);
 
         // Check if there is a clear line of sight between the starting and end positions,
         // within the maximum range
@@ -191,9 +197,9 @@ public interface LookHelper {
      * @param maxRange The maximum range to check for line of sight.
      * @return True if there is a clear line of sight, false otherwise.
      */
-    static boolean cleanLineOfSight(Vec3d end, double maxRange) {
-        MinecraftClient minecraftClient = MinecraftClient.getInstance();
-        PlayerEntity playerEntity = minecraftClient.player;
+    static boolean cleanLineOfSight(Vec3 end, double maxRange) {
+        Minecraft minecraftClient = Minecraft.getInstance();
+        Player playerEntity = minecraftClient.player;
         return cleanLineOfSight(playerEntity, end, maxRange);
     }
 
@@ -207,7 +213,7 @@ public interface LookHelper {
      */
     static boolean cleanLineOfSight(Entity entity, BlockPos block, double maxRange) {
         // Convert the block position to a Vec3d
-        Vec3d targetPosition = WorldHelper.toVec3d(block);
+        Vec3 targetPosition = WorldHelper.toVec3d(block);
 
         // Perform a raycast from the entity's camera position to the target position with the specified max range
         BlockHitResult hitResult = raycast(entity, getCameraPos(entity), targetPosition, maxRange);
@@ -238,7 +244,7 @@ public interface LookHelper {
      * @return the corresponding Vec3d object
      * @throws NullPointerException if the rotation is null
      */
-    static Vec3d toVec3d(Rotation rotation) throws NullPointerException {
+    static Vec3 toVec3d(Rotation rotation) throws NullPointerException {
         // make sure rotation is not null
         Objects.requireNonNull(rotation, "Rotation cannot be null");
 
@@ -246,12 +252,12 @@ public interface LookHelper {
         return calcLookDirectionFromRotation(rotation);
     }
 
-    static Vec3d calcLookDirectionFromRotation(Rotation rotation) {
-        float flatZ = MathHelper.cos(-rotation.getYaw() * 0.017453292F - 3.1415927F);
-        float flatX = MathHelper.sin(-rotation.getYaw() * 0.017453292F - 3.1415927F);
-        float pitchBase = -MathHelper.cos(-rotation.getPitch() * 0.017453292F);
-        float pitchHeight = MathHelper.sin(-rotation.getPitch() * 0.017453292F);
-        return new Vec3d(flatX * pitchBase, pitchHeight, flatZ * pitchBase);
+    static Vec3 calcLookDirectionFromRotation(Rotation rotation) {
+        float flatZ = Mth.cos(-rotation.getYaw() * 0.017453292F - 3.1415927F);
+        float flatX = Mth.sin(-rotation.getYaw() * 0.017453292F - 3.1415927F);
+        float pitchBase = -Mth.cos(-rotation.getPitch() * 0.017453292F);
+        float pitchHeight = Mth.sin(-rotation.getPitch() * 0.017453292F);
+        return new Vec3(flatX * pitchBase, pitchHeight, flatZ * pitchBase);
     }
 
     /**
@@ -263,26 +269,26 @@ public interface LookHelper {
      * @param maxRange the maximum range of the raycast
      * @return the result of the raycast
      */
-    static BlockHitResult raycast(Entity entity, Vec3d start, Vec3d end, double maxRange) {
+    static BlockHitResult raycast(Entity entity, Vec3 start, Vec3 end, double maxRange) {
         // Calculate the direction vector
-        Vec3d direction = end.subtract(start);
+        Vec3 direction = end.subtract(start);
 
         // Check if the direction vector length exceeds the maximum range
-        if (direction.lengthSquared() > maxRange * maxRange) {
+        if (direction.lengthSqr() > maxRange * maxRange) {
             // If it does, normalize the direction vector and multiply it by the maximum range
-            direction = direction.normalize().multiply(maxRange);
+            direction = direction.normalize().scale(maxRange);
             // Update the end point of the raycast to the new calculated position
             end = start.add(direction);
         }
 
         // Get the world of the entity
-        World world = entity.getWorld();
+        Level world = entity.level();
 
         // Create a raycast context with the start and end points, shape type, fluid handling, and entity performing the raycast
-        RaycastContext context = new RaycastContext(start, end, RaycastContext.ShapeType.COLLIDER, RaycastContext.FluidHandling.NONE, entity);
+        ClipContext context = new ClipContext(start, end, ClipContext.Block.COLLIDER, ClipContext.Fluid.NONE, entity);
 
         // Perform the raycast in the world and return the result
-        return world.raycast(context);
+        return world.clip(context);
     }
 
     /**
@@ -294,8 +300,8 @@ public interface LookHelper {
      * @param maxRange The maximum range of the raycast
      * @return The result of the raycast
      */
-    static BlockHitResult raycast(Entity entity, Vec3d end, double maxRange) {
-        Vec3d start = getCameraPos(entity);
+    static BlockHitResult raycast(Entity entity, Vec3 end, double maxRange) {
+        Vec3 start = getCameraPos(entity);
         return raycast(entity, start, end, maxRange);
     }
 
@@ -306,8 +312,8 @@ public interface LookHelper {
      * @return the look rotation of the entity
      */
     static Rotation getLookRotation(Entity entity) {
-        float pitch = entity.getPitch();
-        float yaw = entity.getYaw();
+        float pitch = entity.getXRot();
+        float yaw = entity.getYRot();
         return new Rotation(yaw, pitch);
     }
 
@@ -319,7 +325,7 @@ public interface LookHelper {
      */
     static Rotation getLookRotation() {
         // Retrieve the player instance
-        PlayerEntity player = MinecraftClient.getInstance().player;
+        Player player = Minecraft.getInstance().player;
 
         // If the player is null, return a default rotation
         if (player == null) {
@@ -338,15 +344,15 @@ public interface LookHelper {
      * @param entity The entity for which to retrieve the camera position.
      * @return The camera position of the entity.
      */
-    static Vec3d getCameraPos(Entity entity) {
-        boolean isPlayerSneaking = entity instanceof PlayerEntity && entity.isSneaking();
+    static Vec3 getCameraPos(Entity entity) {
+        boolean isPlayerSneaking = entity instanceof Player && entity.isShiftKeyDown();
 
         // If the entity is a player and is sneaking, infer the sneaking eye position
         if (isPlayerSneaking) {
             return RayTraceUtils.inferSneakingEyePosition(entity);
         } else {
             // Otherwise, return the default camera position of the entity
-            return entity.getCameraPosVec(1.0F);
+            return entity.getEyePosition(1.0F);
         }
     }
 
@@ -356,12 +362,12 @@ public interface LookHelper {
      * @param mod The instance of the AltoClef mod.
      * @return The camera position vector.
      */
-    static Vec3d getCameraPos(AltoClef mod) {
+    static Vec3 getCameraPos(AltoClef mod) {
         // Get the player context from the Baritone API
         IPlayerContext playerContext = BaritoneAPI.getProvider().getPrimaryBaritone().getPlayerContext();
 
         // Get the camera position vector from the player context
-        return playerContext.player().getCameraPosVec(1);
+        return playerContext.player().getEyePosition(1);
     }
 
     /**
@@ -371,21 +377,21 @@ public interface LookHelper {
      * @param pos    The position to compare the look direction to.
      * @return The closeness value between the look direction and the position.
      */
-    static double getLookCloseness(Entity entity, Vec3d pos) {
+    static double getLookCloseness(Entity entity, Vec3 pos) {
         // Get the direction that the entity is facing
-        Vec3d rotDirection = entity.getRotationVecClient();
+        Vec3 rotDirection = entity.getForward();
 
         // Get the starting position of the entity's line of sight
-        Vec3d lookStart = getCameraPos(entity);
+        Vec3 lookStart = getCameraPos(entity);
 
         // Calculate the vector from the look start position to the given position
-        Vec3d deltaToPos = pos.subtract(lookStart);
+        Vec3 deltaToPos = pos.subtract(lookStart);
 
         // Normalize the delta vector to get the direction
-        Vec3d deltaDirection = deltaToPos.normalize();
+        Vec3 deltaDirection = deltaToPos.normalize();
 
         // Calculate the dot product of the rotation direction and the delta direction
-        return rotDirection.dotProduct(deltaDirection);
+        return rotDirection.dot(deltaDirection);
     }
 
     /**
@@ -414,10 +420,10 @@ public interface LookHelper {
      * @param offsetPlayer The offset of the camera position for the player.
      * @return True if the entity can see the player, false otherwise.
      */
-    private static boolean seesPlayerOffset(Entity entity, Entity player, double maxRange, Vec3d offsetEntity, Vec3d offsetPlayer) {
+    private static boolean seesPlayerOffset(Entity entity, Entity player, double maxRange, Vec3 offsetEntity, Vec3 offsetPlayer) {
         // Calculate the camera positions for the entity and player
-        Vec3d entityCameraPos = getCameraPos(entity).add(offsetEntity);
-        Vec3d playerCameraPos = getCameraPos(player).add(offsetPlayer);
+        Vec3 entityCameraPos = getCameraPos(entity).add(offsetEntity);
+        Vec3 playerCameraPos = getCameraPos(player).add(offsetPlayer);
 
         // Check if there is a clean line of sight between the entity and player within the specified range
         return cleanLineOfSight(entity, entityCameraPos, playerCameraPos, maxRange);
@@ -431,7 +437,7 @@ public interface LookHelper {
      */
     private static boolean isCollidingInteractable(AltoClef mod) {
         // Check if the player is in a screen other than the player screen
-        if (!(mod.getPlayer().currentScreenHandler instanceof PlayerScreenHandler)) {
+        if (!(mod.getPlayer().containerMenu instanceof InventoryMenu)) {
             // Get the item stack in the cursor slot
             ItemStack cursorStack = StorageHelper.getItemStackInCursorSlot();
 
@@ -439,19 +445,19 @@ public interface LookHelper {
             if (!cursorStack.isEmpty()) {
                 // Find a slot in the player's inventory to move the cursor stack to
                 Optional<Slot> moveTo = mod.getItemStorage().getSlotThatCanFitInPlayerInventory(cursorStack, false);
-                moveTo.ifPresent(slot -> mod.getSlotHandler().clickSlot(slot, 0, SlotActionType.PICKUP));
+                moveTo.ifPresent(slot -> mod.getSlotHandler().clickSlot(slot, 0, ContainerInput.PICKUP));
 
                 // Check if the cursor stack can be thrown away
                 if (ItemHelper.canThrowAwayStack(mod, cursorStack)) {
-                    mod.getSlotHandler().clickSlot(Slot.UNDEFINED, 0, SlotActionType.PICKUP);
+                    mod.getSlotHandler().clickSlot(Slot.UNDEFINED, 0, ContainerInput.PICKUP);
                 }
 
                 // Find the garbage slot and move the cursor stack to it
                 Optional<Slot> garbage = StorageHelper.getGarbageSlot(mod);
-                garbage.ifPresent(slot -> mod.getSlotHandler().clickSlot(slot, 0, SlotActionType.PICKUP));
+                garbage.ifPresent(slot -> mod.getSlotHandler().clickSlot(slot, 0, ContainerInput.PICKUP));
 
                 // Move the cursor stack to an undefined slot
-                mod.getSlotHandler().clickSlot(Slot.UNDEFINED, 0, SlotActionType.PICKUP);
+                mod.getSlotHandler().clickSlot(Slot.UNDEFINED, 0, ContainerInput.PICKUP);
             } else {
                 // Close the screen if the cursor stack is empty
                 StorageHelper.closeScreen();
@@ -461,7 +467,7 @@ public interface LookHelper {
         }
 
         // Get the crosshair target
-        HitResult result = MinecraftClient.getInstance().crosshairTarget;
+        HitResult result = Minecraft.getInstance().hitResult;
 
         // Check if the crosshair target is null
         if (result == null) {
@@ -471,7 +477,7 @@ public interface LookHelper {
         // Check if the crosshair target is a block
         if (result.getType() == HitResult.Type.BLOCK) {
             // Get the block position from the crosshair target
-            Vec3i resultGetPosOrigin = new Vec3i((int) result.getPos().getX(), (int) result.getPos().getY(), (int) result.getPos().getZ());
+            Vec3i resultGetPosOrigin = new Vec3i((int) result.getLocation().x(), (int) result.getLocation().y(), (int) result.getLocation().z());
             // Check if the block is an interactable block
             return WorldHelper.isInteractableBlock(new BlockPos(resultGetPosOrigin));
         }
@@ -480,7 +486,7 @@ public interface LookHelper {
             // Get the entity from the crosshair target
             Entity entity = ((EntityHitResult) result).getEntity();
             // Check if the entity is a merchant
-            return entity instanceof MerchantEntity;
+            return entity instanceof AbstractVillager;
         }
 
         return false;
@@ -537,8 +543,8 @@ public interface LookHelper {
         }
 
         // Set the player's yaw and pitch
-        mod.getPlayer().setYaw(rotation.getYaw());
-        mod.getPlayer().setPitch(rotation.getPitch());
+        mod.getPlayer().setYRot(rotation.getYaw());
+        mod.getPlayer().setXRot(rotation.getPitch());
     }
 
     /**
@@ -551,10 +557,10 @@ public interface LookHelper {
         AltoClef.getInstance().getClientBaritone().getLookBehavior().updateTarget(rotation, true);
 
         // Set the player's yaw and pitch
-        ClientPlayerEntity player = AltoClef.getInstance().getPlayer();
+        LocalPlayer player = AltoClef.getInstance().getPlayer();
 
-        player.setYaw(rotation.getYaw());
-        player.setPitch(rotation.getPitch());
+        player.setYRot(rotation.getYaw());
+        player.setXRot(rotation.getPitch());
     }
 
     /**
@@ -565,7 +571,7 @@ public interface LookHelper {
      * @param withBaritone Whether to use Baritone to look.
      * @throws IllegalArgumentException if mod or toLook is null.
      */
-    static void lookAt(AltoClef mod, Vec3d toLook, boolean withBaritone) {
+    static void lookAt(AltoClef mod, Vec3 toLook, boolean withBaritone) {
         if (mod == null || toLook == null) {
             throw new IllegalArgumentException("mod and toLook cannot be null");
         }
@@ -581,7 +587,7 @@ public interface LookHelper {
      * @param toLook The position to look at.
      * @throws IllegalArgumentException if mod or toLook is null.
      */
-    static void lookAt(AltoClef mod, Vec3d toLook) {
+    static void lookAt(AltoClef mod, Vec3 toLook) {
         if (mod == null || toLook == null) {
             throw new IllegalArgumentException("mod and toLook cannot be null");
         }
@@ -606,16 +612,16 @@ public interface LookHelper {
 
         // Adjust the center coordinates based on the specified side
         if (side != null) {
-            double offsetX = side.getVector().getX() * 0.5;
-            double offsetY = side.getVector().getY() * 0.5;
-            double offsetZ = side.getVector().getZ() * 0.5;
+            double offsetX = side.getUnitVec3i().getX() * 0.5;
+            double offsetY = side.getUnitVec3i().getY() * 0.5;
+            double offsetZ = side.getUnitVec3i().getZ() * 0.5;
             centerX += offsetX;
             centerY += offsetY;
             centerZ += offsetZ;
         }
 
         // Create a target vector based on the adjusted center coordinates
-        Vec3d target = new Vec3d(centerX, centerY, centerZ);
+        Vec3 target = new Vec3(centerX, centerY, centerZ);
 
         // Adjust the player's view to look at the target location
         lookAt(mod, target, withBaritone);
@@ -636,16 +642,16 @@ public interface LookHelper {
 
         // Adjust the center coordinates based on the specified side
         if (side != null) {
-            double offsetX = side.getVector().getX() * 0.5;
-            double offsetY = side.getVector().getY() * 0.5;
-            double offsetZ = side.getVector().getZ() * 0.5;
+            double offsetX = side.getUnitVec3i().getX() * 0.5;
+            double offsetY = side.getUnitVec3i().getY() * 0.5;
+            double offsetZ = side.getUnitVec3i().getZ() * 0.5;
             centerX += offsetX;
             centerY += offsetY;
             centerZ += offsetZ;
         }
 
         // Create a target vector based on the adjusted center coordinates
-        Vec3d target = new Vec3d(centerX, centerY, centerZ);
+        Vec3 target = new Vec3(centerX, centerY, centerZ);
 
         // Adjust the player's view to look at the target location
         lookAt(mod, target, true);
@@ -679,9 +685,9 @@ public interface LookHelper {
      * @param toLook The coordinates to look at.
      * @return The rotation needed to look at the specified point.
      */
-    static Rotation getLookRotation(AltoClef mod, Vec3d toLook) {
+    static Rotation getLookRotation(AltoClef mod, Vec3 toLook) {
         // Get the player's head position
-        Vec3d playerHead = mod.getClientBaritone().getPlayerContext().playerHead();
+        Vec3 playerHead = mod.getClientBaritone().getPlayerContext().playerHead();
 
         // Get the player's current rotations
         Rotation playerRotations = mod.getClientBaritone().getPlayerContext().playerRotations();
@@ -699,7 +705,7 @@ public interface LookHelper {
      */
     static Rotation getLookRotation(AltoClef mod, BlockPos toLook) {
         // Convert BlockPos to Vec3d
-        Vec3d targetPosition = WorldHelper.toVec3d(toLook);
+        Vec3 targetPosition = WorldHelper.toVec3d(toLook);
 
         // Delegate to the overloaded version of getLookRotation
         return getLookRotation(mod, targetPosition);

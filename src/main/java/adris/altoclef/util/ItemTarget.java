@@ -3,11 +3,10 @@ package adris.altoclef.util;
 import adris.altoclef.Debug;
 import adris.altoclef.TaskCatalogue;
 import adris.altoclef.util.helpers.ItemHelper;
-import net.minecraft.item.Item;
-
 import java.util.Arrays;
 import java.util.HashSet;
 import java.util.Set;
+import net.minecraft.world.item.Item;
 
 /**
  * Defines an item and a count.
@@ -143,6 +142,13 @@ public class ItemTarget {
         return false;
     }
 
+    @Override
+    public int hashCode() {
+        int result = Arrays.hashCode(itemMatches);
+        result = 31 * result + (infinite ? 1 : targetCount);
+        return result;
+    }
+
     public boolean isEmpty() {
         return itemMatches == null || itemMatches.length == 0;
     }
@@ -163,7 +169,7 @@ public class ItemTarget {
                     if (item == null) {
                         result.append("(null??)");
                     } else {
-                        result.append(ItemHelper.trimItemName(item.getTranslationKey()));
+                        result.append(ItemHelper.trimItemName(item.getDescriptionId()));
                     }
                     if (++counter != itemMatches.length) {
                         result.append(",");

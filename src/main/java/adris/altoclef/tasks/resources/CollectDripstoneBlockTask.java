@@ -7,7 +7,7 @@ import adris.altoclef.tasks.CraftInInventoryTask;
 import adris.altoclef.tasks.ResourceTask;
 import adris.altoclef.tasksystem.Task;
 import adris.altoclef.util.*;
-import net.minecraft.block.Block;
+import net.minecraft.world.level.block.Block;
 
 public class CollectDripstoneBlockTask extends ResourceTask {
 

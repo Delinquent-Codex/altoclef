@@ -48,6 +48,8 @@ contains `altoclef` related settings and configurations.
 Regarding the `altoclef_settings.json` file
 Check [Settings.java](https://github.com/MiranCZ/altoclef/blob/main/src/main/java/adris/altoclef/Settings.java)
 
+Baritone's master visualization switch is `#set renderBaritoneVisuals false`. This keeps pathfinding and movement enabled while disabling all Baritone world overlays. `#set renderDiagnostics true` enables a native render-buffer summary every 30 seconds for development testing.
+
 Other configs can be found in the `configs` subdirectory. Some of the `beat_minecraft.json` settings may not work, but I plan to reimplement proper settings in the future.
 
 After modifying your local settings, run `@reload_settings` to apply your changes in-game.

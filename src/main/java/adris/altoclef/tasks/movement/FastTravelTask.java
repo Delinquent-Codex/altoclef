@@ -8,15 +8,15 @@ import adris.altoclef.util.Dimension;
 import adris.altoclef.util.ItemTarget;
 import adris.altoclef.util.helpers.WorldHelper;
 import adris.altoclef.util.time.TimerGame;
-import net.minecraft.block.Blocks;
-import net.minecraft.client.MinecraftClient;
-import net.minecraft.client.gui.screen.DeathScreen;
-import net.minecraft.item.Items;
-import net.minecraft.util.math.BlockPos;
 import org.apache.commons.lang3.NotImplementedException;
 
 import java.util.Objects;
 import java.util.Optional;
+import net.minecraft.client.Minecraft;
+import net.minecraft.client.gui.screens.DeathScreen;
+import net.minecraft.core.BlockPos;
+import net.minecraft.world.item.Items;
+import net.minecraft.world.level.block.Blocks;
 
 @SuppressWarnings("ConstantConditions")
 public class FastTravelTask extends Task {
@@ -75,7 +75,7 @@ public class FastTravelTask extends Task {
         boolean canLightPortal = mod.getItemStorage().hasItem(Items.FLINT_AND_STEEL, Items.FIRE_CHARGE);
 
         // EDGE CASE: We die in the nether, stop force walking, we want to start over.
-        if (MinecraftClient.getInstance().currentScreen instanceof DeathScreen) {
+        if (Minecraft.getInstance().gui.screen() instanceof DeathScreen) {
             _forceOverworldWalking = false;
         }
 
@@ -114,7 +114,7 @@ public class FastTravelTask extends Task {
                 if (!_forceOverworldWalking) {
                     // After walking a bit, the moment we go back into the overworld, walk again.
                     Optional<BlockPos> portalEntrance = mod.getMiscBlockTracker().getLastUsedNetherPortal(Dimension.NETHER);
-                    if (portalEntrance.isPresent() && !portalEntrance.get().isWithinDistance(mod.getPlayer().getPos(), 3)) {
+                    if (portalEntrance.isPresent() && !portalEntrance.get().closerToCenterThan(mod.getPlayer().position(), 3)) {
                         _forceOverworldWalking = true;
                     }
                 }

@@ -4,29 +4,28 @@ import adris.altoclef.AltoClef;
 import adris.altoclef.multiversion.versionedfields.Entities;
 import adris.altoclef.multiversion.item.ItemVer;
 import adris.altoclef.util.helpers.LookHelper;
+import adris.altoclef.util.helpers.ItemComponentHelper;
 import adris.altoclef.util.helpers.StlHelper;
 import adris.altoclef.util.helpers.StorageHelper;
 import adris.altoclef.util.helpers.WorldHelper;
 import adris.altoclef.util.slots.PlayerSlot;
 import adris.altoclef.util.slots.Slot;
 import baritone.api.utils.input.Input;
-import net.minecraft.entity.Entity;
-import net.minecraft.entity.boss.WitherEntity;
-import net.minecraft.entity.mob.CreeperEntity;
-import net.minecraft.entity.mob.HoglinEntity;
-import net.minecraft.entity.mob.ZoglinEntity;
-import net.minecraft.entity.projectile.FireballEntity;
-import net.minecraft.entity.projectile.thrown.PotionEntity;
-import net.minecraft.item.Item;
-import net.minecraft.item.ItemStack;
-import net.minecraft.item.Items;
-import net.minecraft.item.SwordItem;
-import net.minecraft.screen.slot.SlotActionType;
-import net.minecraft.util.math.Vec3d;
-
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
+import net.minecraft.world.entity.Entity;
+import net.minecraft.world.entity.boss.wither.WitherBoss;
+import net.minecraft.world.entity.monster.Creeper;
+import net.minecraft.world.entity.monster.Zoglin;
+import net.minecraft.world.entity.monster.hoglin.Hoglin;
+import net.minecraft.world.entity.projectile.hurtingprojectile.LargeFireball;
+import net.minecraft.world.entity.projectile.throwableitemprojectile.AbstractThrownPotion;
+import net.minecraft.world.inventory.ContainerInput;
+import net.minecraft.world.item.Item;
+import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.Items;
+import net.minecraft.world.phys.Vec3;
 
 /**
  * Controls and applies killaura
@@ -42,20 +41,21 @@ public class KillAura {
     public static void equipWeapon(AltoClef mod) {
         List<ItemStack> invStacks = mod.getItemStorage().getItemStacksPlayerInventory(true);
         if (!invStacks.isEmpty()) {
-            float handDamage = Float.NEGATIVE_INFINITY;
+            ItemStack handStack = StorageHelper.getItemStackInSlot(PlayerSlot.getEquipSlot());
+            Item bestItem = handStack.getItem();
+            double bestDamage = ItemComponentHelper.isWeapon(handStack) ? ItemComponentHelper.getAttackDamage(handStack) : Double.NEGATIVE_INFINITY;
             for (ItemStack invStack : invStacks) {
-                if (invStack.getItem() instanceof SwordItem item) {
-                    float itemDamage = item.getMaterial().getAttackDamage();
-                    Item handItem = StorageHelper.getItemStackInSlot(PlayerSlot.getEquipSlot()).getItem();
-                    if (handItem instanceof SwordItem handToolItem) {
-                        handDamage = handToolItem.getMaterial().getAttackDamage();
-                    }
-                    if (itemDamage > handDamage) {
-                        mod.getSlotHandler().forceEquipItem(item);
-                    } else {
-                        mod.getSlotHandler().forceEquipItem(handItem);
-                    }
+                if (!ItemComponentHelper.isWeapon(invStack)) {
+                    continue;
                 }
+                double itemDamage = ItemComponentHelper.getAttackDamage(invStack);
+                if (itemDamage > bestDamage) {
+                    bestDamage = itemDamage;
+                    bestItem = invStack.getItem();
+                }
+            }
+            if (bestItem != handStack.getItem()) {
+                mod.getSlotHandler().forceEquipItem(bestItem);
             }
         }
     }
@@ -69,7 +69,7 @@ public class KillAura {
     public void applyAura(Entity entity) {
         targets.add(entity);
         // Always hit ghast balls.
-        if (entity instanceof FireballEntity) forceHit = entity;
+        if (entity instanceof LargeFireball) forceHit = entity;
     }
 
     public void setRange(double range) {
@@ -77,22 +77,22 @@ public class KillAura {
     }
 
     public void tickEnd(AltoClef mod) {
-        Optional<Entity> entities = targets.stream().min(StlHelper.compareValues(entity -> entity.squaredDistanceTo(mod.getPlayer())));
+        Optional<Entity> entities = targets.stream().min(StlHelper.compareValues(entity -> entity.distanceToSqr(mod.getPlayer())));
         if (entities.isPresent() &&
-                !mod.getEntityTracker().entityFound(PotionEntity.class) &&
-                (Double.isInfinite(forceFieldRange) || entities.get().squaredDistanceTo(mod.getPlayer()) < forceFieldRange * forceFieldRange ||
-                        entities.get().squaredDistanceTo(mod.getPlayer()) < 40) &&
+                !mod.getEntityTracker().entityFound(AbstractThrownPotion.class) &&
+                (Double.isInfinite(forceFieldRange) || entities.get().distanceToSqr(mod.getPlayer()) < forceFieldRange * forceFieldRange ||
+                        entities.get().distanceToSqr(mod.getPlayer()) < 40) &&
                 !mod.getMLGBucketChain().isFalling(mod) && mod.getMLGBucketChain().doneMLG() &&
                 !mod.getMLGBucketChain().isChorusFruiting()) {
             PlayerSlot offhandSlot = PlayerSlot.OFFHAND_SLOT;
-            Item offhandItem = StorageHelper.getItemStackInSlot(offhandSlot).getItem();
-            if (entities.get().getClass() != CreeperEntity.class && entities.get().getClass() != HoglinEntity.class &&
-                    entities.get().getClass() != ZoglinEntity.class && entities.get().getClass() != Entities.WARDEN &&
-                    entities.get().getClass() != WitherEntity.class
+            ItemStack offhandStack = StorageHelper.getItemStackInSlot(offhandSlot);
+            if (entities.get().getClass() != Creeper.class && entities.get().getClass() != Hoglin.class &&
+                    entities.get().getClass() != Zoglin.class && entities.get().getClass() != Entities.WARDEN &&
+                    entities.get().getClass() != WitherBoss.class
                     && (mod.getItemStorage().hasItem(Items.SHIELD) || mod.getItemStorage().hasItemInOffhand(Items.SHIELD))
-                    && !mod.getPlayer().getItemCooldownManager().isCoolingDown(offhandItem)
+                    && !mod.getPlayer().getCooldowns().isOnCooldown(offhandStack)
                     && mod.getClientBaritone().getPathingBehavior().isSafeToCancel()) {
-                LookHelper.lookAt(mod, entities.get().getEyePos());
+                LookHelper.lookAt(mod, entities.get().getEyePosition());
                 ItemStack shieldSlot = StorageHelper.getItemStackInSlot(PlayerSlot.OFFHAND_SLOT);
                 if (shieldSlot.getItem() != Items.SHIELD) {
                     mod.getSlotHandler().forceEquipItemToOffhand(Items.SHIELD);
@@ -140,9 +140,9 @@ public class KillAura {
                 return;
             }
 
-            Optional<Entity> toHit = targets.stream().min(StlHelper.compareValues(entity -> entity.squaredDistanceTo(mod.getPlayer())));
+            Optional<Entity> toHit = targets.stream().min(StlHelper.compareValues(entity -> entity.distanceToSqr(mod.getPlayer())));
 
-            if (mod.getPlayer() == null || mod.getPlayer().getAttackCooldownProgress(0) < 1) {
+            if (mod.getPlayer() == null || mod.getPlayer().getAttackStrengthScale(0) < 1) {
                 return;
             }
 
@@ -166,15 +166,15 @@ public class KillAura {
 
     private void attack(AltoClef mod, Entity entity, boolean equipSword) {
         if (entity == null) return;
-        if (!(entity instanceof FireballEntity)) {
+        if (!(entity instanceof LargeFireball)) {
             double xAim = entity.getX();
-            double yAim = entity.getY() + (entity.getHeight() / 1.4);
+            double yAim = entity.getY() + (entity.getBbHeight() / 1.4);
             double zAim = entity.getZ();
-            LookHelper.lookAt(mod, new Vec3d(xAim, yAim, zAim));
+            LookHelper.lookAt(mod, new Vec3(xAim, yAim, zAim));
         }
-        if (Double.isInfinite(forceFieldRange) || entity.squaredDistanceTo(mod.getPlayer()) < forceFieldRange * forceFieldRange ||
-                entity.squaredDistanceTo(mod.getPlayer()) < 40) {
-            if (entity instanceof FireballEntity) {
+        if (Double.isInfinite(forceFieldRange) || entity.distanceToSqr(mod.getPlayer()) < forceFieldRange * forceFieldRange ||
+                entity.distanceToSqr(mod.getPlayer()) < 40) {
+            if (entity instanceof LargeFireball) {
                 mod.getControllerExtras().attack(entity);
             }
             boolean canAttack;
@@ -186,7 +186,7 @@ public class KillAura {
                 canAttack = mod.getSlotHandler().forceDeequipHitTool();
             }
             if (canAttack) {
-                if (mod.getPlayer().isOnGround() || mod.getPlayer().getVelocity().getY() < 0 || mod.getPlayer().isTouchingWater()) {
+                if (mod.getPlayer().onGround() || mod.getPlayer().getDeltaMovement().y() < 0 || mod.getPlayer().isInWater()) {
                     attackedLastTick = true;
                     mod.getControllerExtras().attack(entity);
                 }
@@ -205,7 +205,7 @@ public class KillAura {
                 if (!spaceSlots.isEmpty()) {
                     for (ItemStack spaceSlot : spaceSlots) {
                         if (spaceSlot.isEmpty()) {
-                            mod.getSlotHandler().clickSlot(PlayerSlot.getEquipSlot(), 0, SlotActionType.QUICK_MOVE);
+                            mod.getSlotHandler().clickSlot(PlayerSlot.getEquipSlot(), 0, ContainerInput.QUICK_MOVE);
                             return;
                         }
                     }
@@ -225,7 +225,7 @@ public class KillAura {
                 Optional<Slot> toMoveTo = mod.getItemStorage().getSlotThatCanFitInPlayerInventory(cursor, false).or(() -> StorageHelper.getGarbageSlot(mod));
                 if (toMoveTo.isPresent()) {
                     Slot garbageSlot = toMoveTo.get();
-                    mod.getSlotHandler().clickSlot(garbageSlot, 0, SlotActionType.PICKUP);
+                    mod.getSlotHandler().clickSlot(garbageSlot, 0, ContainerInput.PICKUP);
                 }
             }
             mod.getInputControls().release(Input.SNEAK);

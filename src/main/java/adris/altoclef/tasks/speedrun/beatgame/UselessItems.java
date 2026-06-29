@@ -2,10 +2,10 @@ package adris.altoclef.tasks.speedrun.beatgame;
 
 import adris.altoclef.multiversion.versionedfields.Items;
 import adris.altoclef.tasks.speedrun.BeatMinecraftConfig;
-import net.minecraft.item.Item;
-
 import java.util.ArrayList;
 import java.util.List;
+import net.minecraft.world.item.DyeColor;
+import net.minecraft.world.item.Item;
 
 
 
@@ -15,7 +15,7 @@ public class UselessItems {
     public final Item[] uselessItems;
 
     public UselessItems(BeatMinecraftConfig config)  {
-        List<Item> uselessItemList = new ArrayList<>(List.of(
+        List<Item> uselessItemList = new ArrayList<Item>(List.of(
                 //sapling
                 Items.OAK_SAPLING,
                 Items.SPRUCE_SAPLING,
@@ -65,8 +65,8 @@ public class UselessItems {
                 Items.OAK_DOOR,
 
                 Items.STRING,
-                Items.WHITE_TERRACOTTA,
-                Items.RED_TERRACOTTA,
+                Items.DYED_TERRACOTTA.pick(DyeColor.WHITE),
+                Items.DYED_TERRACOTTA.pick(DyeColor.RED),
 
                 Items.MOSS_BLOCK,
                 Items.MOSS_CARPET,
@@ -108,13 +108,13 @@ public class UselessItems {
                 Items.DRIPSTONE_BLOCK,
                 Items.POINTED_DRIPSTONE,
                 Items.ARROW,
-                Items.YELLOW_TERRACOTTA,
+                Items.DYED_TERRACOTTA.pick(DyeColor.YELLOW),
                 Items.TUFF,
                 Items.SPRUCE_STAIRS,
                 Items.SPRUCE_DOOR,
                 Items.SPRUCE_FENCE,
                 Items.SPRUCE_FENCE_GATE,
-                Items.ORANGE_TERRACOTTA,
+                Items.DYED_TERRACOTTA.pick(DyeColor.ORANGE),
                 Items.HEART_OF_THE_SEA,
                 Items.POTION,
                 Items.FLOWERING_AZALEA,
