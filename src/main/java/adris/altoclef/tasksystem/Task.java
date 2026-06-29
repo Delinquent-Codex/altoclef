@@ -125,6 +125,30 @@ public abstract class Task {
         return sub;
     }
 
+    public final boolean retryDeepestTask() {
+        if (sub == null) {
+            stop();
+            reset();
+            return true;
+        }
+        return sub.retryDeepestTask();
+    }
+
+    public final boolean restartChildTask() {
+        if (sub == null) return false;
+        sub.stop();
+        sub = null;
+        return true;
+    }
+
+    public final boolean returnControlFromChild(String reason) {
+        boolean restarted = restartChildTask();
+        if (restarted) {
+            setDebugState("Child failed: " + reason);
+        }
+        return restarted;
+    }
+
     // Virtual
     public boolean isFinished() {
         return false;

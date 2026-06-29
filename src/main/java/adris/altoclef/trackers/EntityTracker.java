@@ -317,6 +317,10 @@ public class EntityTracker extends Tracker {
         return !entityBlacklist.unreachable(entity);
     }
 
+    public void clearTemporaryUnreachable() {
+        entityBlacklist.clear();
+    }
+
     @Override
     protected synchronized void updateState() {
         synchronized (BaritoneHelper.MINECRAFT_LOCK) {

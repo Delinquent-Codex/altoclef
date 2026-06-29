@@ -18,8 +18,10 @@ import adris.altoclef.multiversion.DrawContextWrapper;
 import adris.altoclef.multiversion.versionedfields.Blocks;
 import adris.altoclef.tasksystem.Task;
 import adris.altoclef.tasksystem.TaskRunner;
+import adris.altoclef.tasksystem.TaskChain;
 import adris.altoclef.stability.StabilityDiagnostics;
 import adris.altoclef.stability.SurvivalController;
+import adris.altoclef.stability.ProgressWatchdog;
 import adris.altoclef.trackers.*;
 import adris.altoclef.trackers.storage.ContainerSubTracker;
 import adris.altoclef.trackers.storage.ItemStorageTracker;
@@ -45,6 +47,8 @@ import net.minecraft.core.BlockPos;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.Items;
 import adris.altoclef.multiversion.item.ItemVer;
+import net.minecraft.core.registries.BuiltInRegistries;
+import baritone.api.pathing.path.IPathExecutor;
 import org.lwjgl.glfw.GLFW;
 
 import java.util.*;
@@ -95,6 +99,7 @@ public class AltoClef implements ClientModInitializer {
     private RenderLifecycleRegressionHarness renderRegressionHarness;
     private StabilityDiagnostics stabilityDiagnostics;
     private SurvivalController survivalController;
+    private ProgressWatchdog progressWatchdog;
 
     private static AltoClef instance;
     private boolean loadInitialized;
@@ -159,6 +164,7 @@ public class AltoClef implements ClientModInitializer {
         craftingRecipeTracker = new CraftingRecipeTracker(trackerManager);
         stabilityDiagnostics = new StabilityDiagnostics(this);
         survivalController = new SurvivalController();
+        progressWatchdog = new ProgressWatchdog();
 
         // Renderers
         commandStatusOverlay = new CommandStatusOverlay();
@@ -265,6 +271,7 @@ public class AltoClef implements ClientModInitializer {
         blockScanner.tick();
         updateSurvivalController();
         taskRunner.tick();
+        updateProgressWatchdog();
 
         messageSender.tick();
 
@@ -306,6 +313,9 @@ public class AltoClef implements ClientModInitializer {
         }
         if (survivalController != null) {
             survivalController.reset();
+        }
+        if (progressWatchdog != null) {
+            progressWatchdog.reset();
         }
         stopTasks();
     }
@@ -570,6 +580,10 @@ public class AltoClef implements ClientModInitializer {
         return survivalController;
     }
 
+    public ProgressWatchdog getProgressWatchdog() {
+        return progressWatchdog;
+    }
+
     private void updateSurvivalController() {
         if (!inGame()) {
             survivalController.reset();
@@ -592,6 +606,34 @@ public class AltoClef implements ClientModInitializer {
                 getPlayer().isInLava(), getPlayer().isOnFire(), getPlayer().isInWall(),
                 mlgBucketChain.isFalling(this), nearbyHostiles, getItemStorage().hasItem(Items.SHIELD), hasWeapon));
         stabilityDiagnostics.setSurvivalOverride(state == SurvivalController.State.NONE ? null : state.name());
+    }
+
+    private void updateProgressWatchdog() {
+        boolean eligible = inGame() && taskRunner.isActive()
+                && survivalController.getState() == SurvivalController.State.NONE
+                && taskRunner.getCurrentTaskChain() != null;
+        ProgressWatchdog.Fingerprint fingerprint = eligible ? createProgressFingerprint() : null;
+        ProgressWatchdog.RecoveryStage stage = progressWatchdog.observe(fingerprint, eligible);
+        stabilityDiagnostics.setRecoveryStage(stage == ProgressWatchdog.RecoveryStage.NONE ? null : stage.name());
+        if (stage == ProgressWatchdog.RecoveryStage.NONE) {
+            stabilityDiagnostics.markProgress();
+        }
+    }
+
+    private ProgressWatchdog.Fingerprint createProgressFingerprint() {
+        TaskChain chain = taskRunner.getCurrentTaskChain();
+        String taskSignature = chain.getTasks().stream().map(Task::toString).reduce((a, b) -> a + " > " + b).orElse("idle");
+        int inventoryHash = getItemStorage().getItemStacksPlayerInventory(true).stream()
+                .filter(stack -> !stack.isEmpty())
+                .map(stack -> BuiltInRegistries.ITEM.getKey(stack.getItem()) + "=" + stack.getCount())
+                .sorted().toList().hashCode();
+        IPathExecutor path = getClientBaritone().getPathingBehavior().getCurrent();
+        int pathPosition = path == null ? -1 : path.getPosition();
+        int pathLength = path == null ? -1 : path.getPath().length();
+        String interaction = getItemStorage().getLastBlockPosInteraction().map(BlockPos::toShortString).orElse("none");
+        return new ProgressWatchdog.Fingerprint(taskSignature, getPlayer().blockPosition().toShortString(), inventoryHash,
+                getWorld().dimension().identifier().toString(), pathPosition, pathLength, interaction,
+                stabilityDiagnostics.getRecentFailure());
     }
 
     /**

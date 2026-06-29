@@ -83,6 +83,10 @@ public final class StabilityDiagnostics {
         this.recentFailure = valueOrNone(recentFailure);
     }
 
+    public String getRecentFailure() {
+        return recentFailure;
+    }
+
     public void resetWorldState() {
         samples.clear();
         pathCalculations.clear();

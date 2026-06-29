@@ -87,6 +87,14 @@ public class BlockScanner {
         return blacklist.unreachable(pos);
     }
 
+    public void clearTemporaryUnreachable() {
+        blacklist.clear();
+    }
+
+    public void requestRescan() {
+        rescanTimer.forceElapse();
+    }
+
     public List<BlockPos> getKnownLocations(Block... blocks) {
         List<BlockPos> locations = new LinkedList<>();
 
