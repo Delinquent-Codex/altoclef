@@ -286,7 +286,7 @@ public class PickupDroppedItemTask extends AbstractDoToClosestObjectTask<ItemEnt
 
     @Override
     protected boolean isValid(AltoClef mod, ItemEntity obj) {
-        return obj.isAlive() && !_blacklist.contains(obj);
+        return obj.isAlive() && !_blacklist.contains(obj) && !mod.getInventoryPolicy().shouldIgnorePickup(obj);
     }
 
 }

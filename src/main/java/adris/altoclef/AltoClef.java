@@ -22,6 +22,7 @@ import adris.altoclef.tasksystem.TaskChain;
 import adris.altoclef.stability.StabilityDiagnostics;
 import adris.altoclef.stability.SurvivalController;
 import adris.altoclef.stability.ProgressWatchdog;
+import adris.altoclef.stability.InventoryPolicy;
 import adris.altoclef.trackers.*;
 import adris.altoclef.trackers.storage.ContainerSubTracker;
 import adris.altoclef.trackers.storage.ItemStorageTracker;
@@ -100,6 +101,7 @@ public class AltoClef implements ClientModInitializer {
     private StabilityDiagnostics stabilityDiagnostics;
     private SurvivalController survivalController;
     private ProgressWatchdog progressWatchdog;
+    private InventoryPolicy inventoryPolicy;
 
     private static AltoClef instance;
     private boolean loadInitialized;
@@ -165,6 +167,7 @@ public class AltoClef implements ClientModInitializer {
         stabilityDiagnostics = new StabilityDiagnostics(this);
         survivalController = new SurvivalController();
         progressWatchdog = new ProgressWatchdog();
+        inventoryPolicy = new InventoryPolicy(this);
 
         // Renderers
         commandStatusOverlay = new CommandStatusOverlay();
@@ -270,6 +273,7 @@ public class AltoClef implements ClientModInitializer {
         trackerManager.tick();
         blockScanner.tick();
         updateSurvivalController();
+        inventoryPolicy.tick();
         taskRunner.tick();
         updateProgressWatchdog();
 
@@ -316,6 +320,9 @@ public class AltoClef implements ClientModInitializer {
         }
         if (progressWatchdog != null) {
             progressWatchdog.reset();
+        }
+        if (inventoryPolicy != null) {
+            inventoryPolicy.reset();
         }
         stopTasks();
     }
@@ -582,6 +589,10 @@ public class AltoClef implements ClientModInitializer {
 
     public ProgressWatchdog getProgressWatchdog() {
         return progressWatchdog;
+    }
+
+    public InventoryPolicy getInventoryPolicy() {
+        return inventoryPolicy;
     }
 
     private void updateSurvivalController() {

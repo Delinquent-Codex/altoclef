@@ -365,6 +365,10 @@ public class EntityTracker extends Tracker {
                 if (entity instanceof ItemEntity ientity) {
                     Item droppedItem = ientity.getItem().getItem();
 
+                    if (mod.getInventoryPolicy().shouldIgnorePickup(ientity)) {
+                        continue;
+                    }
+
                     // Only cared about GROUNDED item entities
                     if (ientity.onGround() || ientity.isInWater() || WorldHelper.isSolidBlock(ientity.blockPosition().below(2)) || WorldHelper.isSolidBlock(ientity.blockPosition().below(3))) {
                         if (!itemDropLocations.containsKey(droppedItem)) {

@@ -64,6 +64,20 @@ public class SlotHandler {
     public void clickSlot(Slot slot, int mouseButton, ContainerInput type) {
         if (!canDoSlotAction()) return;
 
+        ItemStack stackBeforeClick = type == ContainerInput.THROW
+                ? StorageHelper.getItemStackInSlot(slot)
+                : StorageHelper.getItemStackInCursorSlot();
+        boolean outsideDrop = slot.getWindowSlot() == Slot.UNDEFINED.getWindowSlot()
+                && type == ContainerInput.PICKUP && !stackBeforeClick.isEmpty();
+        if (outsideDrop && !mod.getInventoryPolicy().canDiscard(stackBeforeClick)) {
+            mod.getStabilityDiagnostics().setRecentFailure("prevented discard of reserved "
+                    + stackBeforeClick.getItem().getDescriptionId());
+            return;
+        }
+        if ((outsideDrop || type == ContainerInput.THROW) && !stackBeforeClick.isEmpty() && mod.getPlayer() != null) {
+            mod.getInventoryPolicy().recordDeliberateDrop(stackBeforeClick.copy(), mod.getPlayer().position());
+        }
+
         if (slot.getWindowSlot() == -1) {
             clickSlot(PlayerSlot.UNDEFINED, 0, ContainerInput.PICKUP);
             return;
