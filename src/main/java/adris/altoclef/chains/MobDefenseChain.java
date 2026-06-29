@@ -13,6 +13,7 @@ import adris.altoclef.tasks.movement.RunAwayFromCreepersTask;
 import adris.altoclef.tasks.movement.RunAwayFromHostilesTask;
 import adris.altoclef.tasks.speedrun.DragonBreathTracker;
 import adris.altoclef.tasksystem.TaskRunner;
+import adris.altoclef.stability.SurvivalController;
 import adris.altoclef.util.baritone.CachedProjectile;
 import adris.altoclef.util.helpers.*;
 import adris.altoclef.util.slots.PlayerSlot;
@@ -181,6 +182,17 @@ public class MobDefenseChain extends SingleTaskChain {
             return Float.NEGATIVE_INFINITY;
         }
         AltoClef mod = AltoClef.getInstance();
+
+        SurvivalController.State survival = mod.getSurvivalController().getState();
+        if (survival.isWorldEmergency() || survival == SurvivalController.State.DANGEROUS_FALL) {
+            stopShielding(mod);
+            return Float.NEGATIVE_INFINITY;
+        }
+        if (survival == SurvivalController.State.HOSTILE_RETREAT) {
+            runAwayTask = new RunAwayFromHostilesTask(DANGER_KEEP_DISTANCE, true);
+            setTask(runAwayTask);
+            return 90;
+        }
 
         if (!mod.getModSettings().isMobDefense()) {
             return Float.NEGATIVE_INFINITY;

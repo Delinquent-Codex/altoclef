@@ -19,6 +19,7 @@ import adris.altoclef.multiversion.versionedfields.Blocks;
 import adris.altoclef.tasksystem.Task;
 import adris.altoclef.tasksystem.TaskRunner;
 import adris.altoclef.stability.StabilityDiagnostics;
+import adris.altoclef.stability.SurvivalController;
 import adris.altoclef.trackers.*;
 import adris.altoclef.trackers.storage.ContainerSubTracker;
 import adris.altoclef.trackers.storage.ItemStorageTracker;
@@ -40,8 +41,10 @@ import net.minecraft.client.Minecraft;
 import net.minecraft.client.multiplayer.ClientLevel;
 import net.minecraft.client.multiplayer.MultiPlayerGameMode;
 import net.minecraft.client.player.LocalPlayer;
+import net.minecraft.core.BlockPos;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.Items;
+import adris.altoclef.multiversion.item.ItemVer;
 import org.lwjgl.glfw.GLFW;
 
 import java.util.*;
@@ -91,6 +94,7 @@ public class AltoClef implements ClientModInitializer {
     private boolean runIdleCommandWhenReady;
     private RenderLifecycleRegressionHarness renderRegressionHarness;
     private StabilityDiagnostics stabilityDiagnostics;
+    private SurvivalController survivalController;
 
     private static AltoClef instance;
     private boolean loadInitialized;
@@ -154,6 +158,7 @@ public class AltoClef implements ClientModInitializer {
         miscBlockTracker = new MiscBlockTracker(this);
         craftingRecipeTracker = new CraftingRecipeTracker(trackerManager);
         stabilityDiagnostics = new StabilityDiagnostics(this);
+        survivalController = new SurvivalController();
 
         // Renderers
         commandStatusOverlay = new CommandStatusOverlay();
@@ -258,6 +263,7 @@ public class AltoClef implements ClientModInitializer {
         miscBlockTracker.tick();
         trackerManager.tick();
         blockScanner.tick();
+        updateSurvivalController();
         taskRunner.tick();
 
         messageSender.tick();
@@ -297,6 +303,9 @@ public class AltoClef implements ClientModInitializer {
         }
         if (stabilityDiagnostics != null) {
             stabilityDiagnostics.resetWorldState();
+        }
+        if (survivalController != null) {
+            survivalController.reset();
         }
         stopTasks();
     }
@@ -555,6 +564,34 @@ public class AltoClef implements ClientModInitializer {
 
     public StabilityDiagnostics getStabilityDiagnostics() {
         return stabilityDiagnostics;
+    }
+
+    public SurvivalController getSurvivalController() {
+        return survivalController;
+    }
+
+    private void updateSurvivalController() {
+        if (!inGame()) {
+            survivalController.reset();
+            return;
+        }
+        boolean hasFood = getItemStorage().getItemStacksPlayerInventory(true).stream()
+                .anyMatch(stack -> !stack.isEmpty() && ItemVer.isFood(stack) && stack.getItem() != Items.SPIDER_EYE);
+        int nearbyHostiles = (int) getEntityTracker().getHostiles().stream()
+                .filter(hostile -> hostile.closerThan(getPlayer(), 10)).count();
+        BlockPos head = getPlayer().blockPosition().above();
+        boolean solidOverhead = !getWorld().getBlockState(head).isAir()
+                && getWorld().getBlockState(head).getFluidState().isEmpty();
+        boolean hasWeapon = getItemStorage().hasItem(
+                Items.WOODEN_SWORD, Items.STONE_SWORD, Items.IRON_SWORD, Items.GOLDEN_SWORD, Items.DIAMOND_SWORD,
+                Items.NETHERITE_SWORD, Items.WOODEN_AXE, Items.STONE_AXE, Items.IRON_AXE, Items.GOLDEN_AXE,
+                Items.DIAMOND_AXE, Items.NETHERITE_AXE);
+        SurvivalController.State state = survivalController.tick(new SurvivalController.Signals(
+                getPlayer().getHealth(), getPlayer().getFoodData().getFoodLevel(), getPlayer().getAirSupply(),
+                getPlayer().getMaxAirSupply(), hasFood, getPlayer().isUnderWater(), solidOverhead,
+                getPlayer().isInLava(), getPlayer().isOnFire(), getPlayer().isInWall(),
+                mlgBucketChain.isFalling(this), nearbyHostiles, getItemStorage().hasItem(Items.SHIELD), hasWeapon));
+        stabilityDiagnostics.setSurvivalOverride(state == SurvivalController.State.NONE ? null : state.name());
     }
 
     /**
