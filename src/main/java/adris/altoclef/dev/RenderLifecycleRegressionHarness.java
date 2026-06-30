@@ -64,13 +64,17 @@ public final class RenderLifecycleRegressionHarness {
         if (minecraft.level != null && minecraft.player != null) {
             if (activeWorld != minecraft.level) {
                 activeWorld = minecraft.level;
-                phase = Phase.ACTIVE;
-                openingRequested = false;
-                phaseStartedNanos = now;
-                commandStarted = false;
-                setupApplied = false;
-                log("cycle=" + (completedCycles + 1) + " entered handlers="
-                        + mod.getClientBaritone().getGameEventHandler().getListenerCount());
+                if (phase != Phase.ACTIVE) {
+                    phase = Phase.ACTIVE;
+                    openingRequested = false;
+                    phaseStartedNanos = now;
+                    commandStarted = false;
+                    setupApplied = false;
+                    log("cycle=" + (completedCycles + 1) + " entered handlers="
+                            + mod.getClientBaritone().getGameEventHandler().getListenerCount());
+                } else {
+                    log("cycle=" + (completedCycles + 1) + " changed dimension");
+                }
             }
 
             if (phase == Phase.ACTIVE && !setupApplied && now - phaseStartedNanos >= 2_000_000_000L) {
