@@ -104,6 +104,10 @@ public final class InventoryPolicy {
         suppressedDrops.clear();
     }
 
+    public static boolean canRunRootInventoryCleanup(boolean childTransactionActive, boolean screenOpen) {
+        return !childTransactionActive && !screenOpen;
+    }
+
     public String describeReservations() {
         if (reservations.isEmpty()) return "none";
         StringJoiner result = new StringJoiner(",");
