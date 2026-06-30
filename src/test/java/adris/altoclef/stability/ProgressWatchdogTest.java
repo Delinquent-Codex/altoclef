@@ -89,7 +89,7 @@ class ProgressWatchdogTest {
         ProgressWatchdog.Fingerprint first = uiFingerprint("clear-grid", 1, "minecraft:planks=3");
         ProgressWatchdog.Fingerprint second = uiFingerprint("clear-grid", 2, "empty");
 
-        for (int i = 0; i < 100; i++) {
+        for (int i = 0; i <= 100; i++) {
             watchdog.observe(first, true);
             watchdog.observe(second, true);
         }
@@ -97,11 +97,22 @@ class ProgressWatchdogTest {
     }
 
     @Test
+    void allowsLongUiTransactionWhenEachInventoryStateAdvances() {
+        ProgressWatchdog watchdog = new ProgressWatchdog(500, 2, 500);
+
+        for (int tick = 0; tick < 250; tick++) {
+            watchdog.observe(uiFingerprint("move-slot", tick, "empty"), true);
+        }
+
+        assertEquals(ProgressWatchdog.RecoveryStage.NONE, watchdog.getStage());
+    }
+
+    @Test
     void suppressesImmediateUiRecoveryRetriggerAfterCompletion() {
         ProgressWatchdog watchdog = new ProgressWatchdog(100, 2, 100);
         ProgressWatchdog.Fingerprint first = uiFingerprint("clear-grid", 1, "minecraft:planks=3");
         ProgressWatchdog.Fingerprint second = uiFingerprint("clear-grid", 2, "empty");
-        for (int i = 0; i < 100; i++) {
+        for (int i = 0; i <= 100; i++) {
             watchdog.observe(first, true);
             watchdog.observe(second, true);
         }

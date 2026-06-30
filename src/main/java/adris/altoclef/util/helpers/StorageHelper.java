@@ -683,16 +683,35 @@ public class StorageHelper {
         return false;
     }
 
+    public static List<Slot> getLivePlayerInventorySlots(ItemTarget target) {
+        LocalPlayer player = Minecraft.getInstance().player;
+        if (player == null) return List.of();
+        List<Slot> result = new ArrayList<>();
+        AbstractContainerMenu menu = player.containerMenu;
+        for (int windowSlot = 0; windowSlot < menu.slots.size(); windowSlot++) {
+            net.minecraft.world.inventory.Slot candidate = menu.getSlot(windowSlot);
+            int inventorySlot = candidate.getContainerSlot();
+            if (candidate.container == player.getInventory() && inventorySlot >= 0 && inventorySlot < 36
+                    && target.matches(candidate.getItem().getItem())) {
+                result.add(Slot.getFromCurrentScreen(windowSlot));
+            }
+        }
+        return result;
+    }
+
     private static Optional<Slot> findSafePlayerInventoryDestination(ItemStack cursor) {
         LocalPlayer player = Minecraft.getInstance().player;
         if (player == null || cursor.isEmpty()) return Optional.empty();
         AbstractContainerMenu menu = player.containerMenu;
-        int firstPlayerSlot = Math.max(0, menu.slots.size() - 36);
-        for (int windowSlot = firstPlayerSlot; windowSlot < menu.slots.size(); windowSlot++) {
+        for (int windowSlot = 0; windowSlot < menu.slots.size(); windowSlot++) {
             net.minecraft.world.inventory.Slot candidate = menu.getSlot(windowSlot);
-            if (candidate.container != player.getInventory() || !candidate.mayPlace(cursor)) continue;
+            int inventorySlot = candidate.getContainerSlot();
+            if (candidate.container != player.getInventory() || inventorySlot < 0 || inventorySlot >= 36
+                    || !candidate.mayPlace(cursor)) continue;
             ItemStack present = candidate.getItem();
-            if (present.isEmpty() || ItemHelper.canStackTogether(cursor, present)) {
+            int available = candidate.getMaxStackSize(cursor) - present.getCount();
+            if ((present.isEmpty() || ItemHelper.canStackTogether(cursor, present))
+                    && available >= cursor.getCount()) {
                 return Optional.of(Slot.getFromCurrentScreen(windowSlot));
             }
         }

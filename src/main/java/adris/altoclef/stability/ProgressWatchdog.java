@@ -11,6 +11,7 @@ public final class ProgressWatchdog {
     private final int stageTicksThreshold;
     private final int transitionLimit;
     private final BoundedHistory<Fingerprint> history = new BoundedHistory<>(128);
+    private final BoundedHistory<UiState> uiStates = new BoundedHistory<>(128);
 
     private Fingerprint previous;
     private RecoveryStage stage = RecoveryStage.NONE;
@@ -43,20 +44,44 @@ public final class ProgressWatchdog {
             return stage;
         }
         history.add(current);
-        uiTransactionTicks = current.uiTransaction() ? uiTransactionTicks + 1 : 0;
+        boolean repeatedUiState = false;
+        if (current.uiTransaction()) {
+            UiState currentUiState = UiState.from(current);
+            repeatedUiState = uiStates.snapshot().contains(currentUiState);
+            uiStates.add(currentUiState);
+        } else {
+            uiTransactionTicks = 0;
+            uiRecoveryCompletions = 0;
+            uiStates.clear();
+        }
         if (previous == null) {
             previous = current;
             progressObserved = true;
             return stage;
         }
 
-        if (!current.uiTransaction()) uiRecoveryCompletions = 0;
+        boolean meaningfulProgress = meaningfulProgress(previous, current);
+        boolean forwardProgress = meaningfulProgress && (!current.uiTransaction() || !repeatedUiState);
+        if (current.uiTransaction()) {
+            if (repeatedUiState || !meaningfulProgress) {
+                uiTransactionTicks++;
+            } else {
+                uiTransactionTicks = 0;
+                uiRecoveryCompletions = 0;
+            }
+        }
         boolean repeatedUiCycle = uiRecoveryCooldownTicks == 0 && uiTransactionTicks >= 20 * 10
                 && current.uiTransaction();
-        if (!repeatedUiCycle && meaningfulProgress(previous, current)) {
+        if (!repeatedUiCycle && forwardProgress) {
             resetRecoveryState();
             previous = current;
             progressObserved = true;
+            return stage;
+        }
+        if (!repeatedUiCycle && meaningfulProgress) {
+            stagnantTicks = 0;
+            childTransitions = 0;
+            previous = current;
             return stage;
         }
 
@@ -111,6 +136,7 @@ public final class ProgressWatchdog {
         uiRecoveryCooldownTicks = 0;
         uiTransactionTicks = 0;
         uiRecoveryCompletions = 0;
+        uiStates.clear();
     }
 
     public void markUiRecoveryCompleted() {
@@ -136,6 +162,7 @@ public final class ProgressWatchdog {
     private void resetObservation() {
         previous = null;
         uiTransactionTicks = 0;
+        uiStates.clear();
         if (stage == RecoveryStage.NONE) {
             stagnantTicks = 0;
             childTransitions = 0;
@@ -202,5 +229,12 @@ public final class ProgressWatchdog {
                               String dimension, int pathPosition, int pathLength,
                               String interactionTarget, String recentFailure,
                               String cursorStack, String screenType, String uiOperation, boolean uiTransaction) {
+    }
+
+    private record UiState(int inventoryHash, String cursorStack, String screenType, String uiOperation) {
+        private static UiState from(Fingerprint fingerprint) {
+            return new UiState(fingerprint.inventoryHash(), fingerprint.cursorStack(), fingerprint.screenType(),
+                    fingerprint.uiOperation());
+        }
     }
 }

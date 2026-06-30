@@ -15,7 +15,6 @@ import adris.altoclef.stability.CraftingBatchPlanner;
 import java.util.Optional;
 import net.minecraft.world.inventory.ContainerInput;
 import net.minecraft.world.item.ItemStack;
-import net.minecraft.world.item.Items;
 
 /**
  * Assuming a crafting screen is open, crafts a recipe.
@@ -58,6 +57,13 @@ public class CraftGenericManuallyTask extends Task {
             return null;
         }
 
+        ItemStack cursor = StorageHelper.getItemStackInCursorSlot();
+        if (!cursor.isEmpty()) {
+            setDebugState("Stowing inherited cursor stack");
+            StorageHelper.tryStowCursorStack(mod, false);
+            return null;
+        }
+
         Slot outputSlot = bigCrafting ? CraftingTableSlot.OUTPUT_SLOT : PlayerSlot.CRAFT_OUTPUT_SLOT;
 
         // Example:
@@ -79,13 +85,13 @@ public class CraftGenericManuallyTask extends Task {
                 currentCraftSlot = PlayerSlot.getCraftInputSlot(craftSlot);
             }
             ItemStack present = StorageHelper.getItemStackInSlot(currentCraftSlot);
-            if (toFill == null || toFill.isEmpty()) {
-                if (present.getItem() != Items.AIR) {
-                    // Move this item OUT if it should be empty
-                    setDebugState("Found INVALID slot");
-                    mod.getSlotHandler().clickSlot(currentCraftSlot, 0, ContainerInput.PICKUP);
-                }
-            } else {
+            if (shouldClearCraftSlot(toFill, present)) {
+                setDebugState("Clearing stale crafting slot");
+                mod.getCraftingRecipeTracker().setDirty();
+                mod.getSlotHandler().clickSlot(currentCraftSlot, 0, ContainerInput.PICKUP);
+                return null;
+            }
+            if (toFill != null && !toFill.isEmpty()) {
                 boolean correctItem = toFill.matches(present.getItem());
                 boolean isSatisfied = correctItem && present.getCount() >= requiredPerSlot;
                 if (!isSatisfied) {
@@ -114,7 +120,7 @@ public class CraftGenericManuallyTask extends Task {
         }
 
         // Ensure our cursor is empty/can receive our item
-        ItemStack cursor = StorageHelper.getItemStackInCursorSlot();
+        cursor = StorageHelper.getItemStackInCursorSlot();
         if (!ItemHelper.canStackTogether(StorageHelper.getItemStackInSlot(outputSlot), cursor)) {
             Optional<Slot> toFit = mod.getItemStorage().getSlotThatCanFitInPlayerInventory(cursor, false).or(() -> StorageHelper.getGarbageSlot(mod));
             if (toFit.isPresent()) {
@@ -148,5 +154,15 @@ public class CraftGenericManuallyTask extends Task {
     @Override
     protected String toDebugString() {
         return "Crafting: " + target;
+    }
+
+    static boolean shouldClearCraftSlot(ItemTarget expected, ItemStack present) {
+        boolean expectedEmpty = expected == null || expected.isEmpty();
+        boolean presentMatches = !expectedEmpty && expected.matches(present.getItem());
+        return shouldClearCraftSlot(expectedEmpty, present.isEmpty(), presentMatches);
+    }
+
+    static boolean shouldClearCraftSlot(boolean expectedEmpty, boolean presentEmpty, boolean presentMatches) {
+        return !presentEmpty && (expectedEmpty || !presentMatches);
     }
 }
