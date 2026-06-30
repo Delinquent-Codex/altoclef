@@ -56,6 +56,7 @@ public class BlockScanner {
     private volatile long lastAsyncScanNanos;
     private volatile int lastAsyncChunksVisited;
     private volatile int lastClosePositionsVisited;
+    private final Object closePublishedLock = new Object();
     private HashMap<Block, HashSet<BlockPos>> closePublishedBlocks = new HashMap<>();
     private HashMap<Block, HashSet<BlockPos>> closeWorkingBlocks = new HashMap<>();
     private BlockPos closeScanOrigin;
@@ -72,6 +73,11 @@ public class BlockScanner {
 
 
     public void addBlock(Block block, BlockPos pos) {
+        Minecraft minecraft = Minecraft.getInstance();
+        if (!minecraft.isSameThread()) {
+            minecraft.execute(() -> addBlock(block, pos));
+            return;
+        }
         if (!isBlockAtPosition(pos, block)) {
             Debug.logInternal("INVALID SET: " + block + " " + pos);
             return;
@@ -85,7 +91,9 @@ public class BlockScanner {
 
             trackedBlocks.put(block, set);
         }
-        closePublishedBlocks.computeIfAbsent(block, ignored -> new HashSet<>()).add(pos);
+        synchronized (closePublishedLock) {
+            closePublishedBlocks.computeIfAbsent(block, ignored -> new HashSet<>()).add(pos);
+        }
     }
 
 
@@ -283,7 +291,9 @@ public class BlockScanner {
         scannedBlocks.clear();
         scannedChunks.clear();
         cachedScannedBlocks.clear();
-        closePublishedBlocks.clear();
+        synchronized (closePublishedLock) {
+            closePublishedBlocks.clear();
+        }
         closeWorkingBlocks.clear();
         closeScanOrigin = null;
         closeScanWorld = null;
@@ -350,7 +360,11 @@ public class BlockScanner {
         for (Map.Entry<Block, HashSet<BlockPos>> entry : cachedScannedBlocks.entrySet()) {
             trackedBlocks.computeIfAbsent(entry.getKey(), ignored -> new HashSet<>()).addAll(entry.getValue());
         }
-        for (Map.Entry<Block, HashSet<BlockPos>> entry : closePublishedBlocks.entrySet()) {
+        HashMap<Block, HashSet<BlockPos>> publishedSnapshot;
+        synchronized (closePublishedLock) {
+            publishedSnapshot = snapshotBlockMap(closePublishedBlocks);
+        }
+        for (Map.Entry<Block, HashSet<BlockPos>> entry : publishedSnapshot.entrySet()) {
             trackedBlocks.computeIfAbsent(entry.getKey(), ignored -> new HashSet<>()).addAll(entry.getValue());
         }
 
@@ -378,10 +392,13 @@ public class BlockScanner {
         }
         lastClosePositionsVisited = budget.used();
         if (closeScanCursor >= CLOSE_SCAN_SIZE) {
-            closePublishedBlocks = closeWorkingBlocks;
+            synchronized (closePublishedLock) {
+                closePublishedBlocks = closeWorkingBlocks;
+                publishedSnapshot = snapshotBlockMap(closePublishedBlocks);
+            }
             closeWorkingBlocks = new HashMap<>();
             closeScanCursor = 0;
-            for (Map.Entry<Block, HashSet<BlockPos>> entry : closePublishedBlocks.entrySet()) {
+            for (Map.Entry<Block, HashSet<BlockPos>> entry : publishedSnapshot.entrySet()) {
                 trackedBlocks.computeIfAbsent(entry.getKey(), ignored -> new HashSet<>()).addAll(entry.getValue());
             }
         }
@@ -542,6 +559,10 @@ public class BlockScanner {
     }
 
     private static HashMap<Block, HashSet<BlockPos>> copyScannedBlocks(Map<Block, HashSet<BlockPos>> source) {
+        return snapshotBlockMap(source);
+    }
+
+    static HashMap<Block, HashSet<BlockPos>> snapshotBlockMap(Map<Block, HashSet<BlockPos>> source) {
         HashMap<Block, HashSet<BlockPos>> copy = new HashMap<>(source.size());
         for (Map.Entry<Block, HashSet<BlockPos>> entry : source.entrySet()) {
             copy.put(entry.getKey(), new HashSet<>(entry.getValue()));
