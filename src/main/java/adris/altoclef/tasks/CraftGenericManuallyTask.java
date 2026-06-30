@@ -58,7 +58,8 @@ public class CraftGenericManuallyTask extends Task {
         }
 
         ItemStack cursor = StorageHelper.getItemStackInCursorSlot();
-        if (!cursor.isEmpty()) {
+        boolean childActive = getSubTask() != null && getSubTask().isActive();
+        if (shouldStowInheritedCursor(!cursor.isEmpty(), childActive)) {
             setDebugState("Stowing inherited cursor stack");
             StorageHelper.tryStowCursorStack(mod, false);
             return null;
@@ -164,5 +165,9 @@ public class CraftGenericManuallyTask extends Task {
 
     static boolean shouldClearCraftSlot(boolean expectedEmpty, boolean presentEmpty, boolean presentMatches) {
         return !presentEmpty && (expectedEmpty || !presentMatches);
+    }
+
+    static boolean shouldStowInheritedCursor(boolean cursorOccupied, boolean childActive) {
+        return cursorOccupied && !childActive;
     }
 }

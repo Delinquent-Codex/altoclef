@@ -21,4 +21,11 @@ class CraftGenericManuallyTaskTest {
     void clearsOccupiedSlotThatRecipeLeavesEmpty() {
         assertTrue(CraftGenericManuallyTask.shouldClearCraftSlot(true, false, false));
     }
+
+    @Test
+    void doesNotStealCursorFromActiveSlotMoveChild() {
+        assertFalse(CraftGenericManuallyTask.shouldStowInheritedCursor(true, true));
+        assertTrue(CraftGenericManuallyTask.shouldStowInheritedCursor(true, false));
+        assertFalse(CraftGenericManuallyTask.shouldStowInheritedCursor(false, false));
+    }
 }
