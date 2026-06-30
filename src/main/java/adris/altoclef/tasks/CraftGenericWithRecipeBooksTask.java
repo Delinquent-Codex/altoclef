@@ -19,8 +19,11 @@ import net.minecraft.client.player.LocalPlayer;
 import net.minecraft.world.item.ItemStack;
 
 public class CraftGenericWithRecipeBooksTask extends Task implements ITaskUsesCraftingGrid {
+    private static final int MANUAL_FALLBACK_TICKS = 40;
 
     private final RecipeTarget target;
+    private int noOutputTicks;
+    private boolean manualFallback;
 
     public CraftGenericWithRecipeBooksTask(RecipeTarget target) {
         this.target = target;
@@ -31,7 +34,8 @@ public class CraftGenericWithRecipeBooksTask extends Task implements ITaskUsesCr
      */
     @Override
     protected void onStart() {
-
+        noOutputTicks = 0;
+        manualFallback = false;
     }
 
     /**
@@ -43,6 +47,10 @@ public class CraftGenericWithRecipeBooksTask extends Task implements ITaskUsesCr
     @Override
     protected Task onTick() {
         AltoClef mod = AltoClef.getInstance();
+
+        if (manualFallback) {
+            return new CraftGenericManuallyTask(target);
+        }
 
         // Check if the big crafting UI or player inventory UI is open
         boolean isBigCraftingOpen = StorageHelper.isBigCraftingOpen();
@@ -63,6 +71,11 @@ public class CraftGenericWithRecipeBooksTask extends Task implements ITaskUsesCr
             return null;
         }
 
+        if (!isBigCraftingOpen && !StorageHelper.isPlayerInventoryScreenOpen()) {
+            StorageHelper.openPlayerInventoryScreen();
+            return null;
+        }
+
         // Determine the output slot based on whether the big crafting UI is open
         Slot outputSlot = isBigCraftingOpen ? CraftingTableSlot.OUTPUT_SLOT : PlayerSlot.CRAFT_OUTPUT_SLOT;
         // Get the item stack in the output slot
@@ -70,6 +83,7 @@ public class CraftGenericWithRecipeBooksTask extends Task implements ITaskUsesCr
 
         // Check if the output item matches the target item and the target count has not been reached
         if (target.getOutputItem() == output.getItem() && mod.getItemStorage().getItemCount(target.getOutputItem()) < target.getTargetCount()) {
+            noOutputTicks = 0;
             // Return a task to receive the crafting output slot
             return new ReceiveCraftingOutputSlotTask(outputSlot, target.getTargetCount());
         }
@@ -78,6 +92,15 @@ public class CraftGenericWithRecipeBooksTask extends Task implements ITaskUsesCr
         if (!cursorStack.isEmpty()) {
             StorageHelper.tryStowCursorStack(mod);
             return null;
+        }
+
+        if (shouldUseManualFallback(++noOutputTicks)) {
+            manualFallback = true;
+            mod.getCraftingRecipeTracker().setDirty();
+            mod.getStabilityDiagnostics().setRecentFailure("recipe-book placement stalled for "
+                    + target.getOutputItem().getDescriptionId() + "; using manual crafting");
+            setDebugState("Recipe book stalled; using manual crafting");
+            return new CraftGenericManuallyTask(target);
         }
 
         // Check if neither the big crafting UI nor the player inventory UI is open
@@ -104,6 +127,10 @@ public class CraftGenericWithRecipeBooksTask extends Task implements ITaskUsesCr
         }
 
         return null;
+    }
+
+    static boolean shouldUseManualFallback(int noOutputTicks) {
+        return noOutputTicks >= MANUAL_FALLBACK_TICKS;
     }
 
     /**

@@ -53,6 +53,11 @@ public class CraftGenericManuallyTask extends Task {
             return null;
         }
 
+        if (!bigCrafting && !StorageHelper.isPlayerInventoryScreenOpen()) {
+            StorageHelper.openPlayerInventoryScreen();
+            return null;
+        }
+
         Slot outputSlot = bigCrafting ? CraftingTableSlot.OUTPUT_SLOT : PlayerSlot.CRAFT_OUTPUT_SLOT;
 
         // Example:

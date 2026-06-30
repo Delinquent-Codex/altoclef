@@ -11,6 +11,7 @@ import adris.altoclef.tasksystem.TaskRunner;
 import adris.altoclef.tasksystem.Task;
 import adris.altoclef.stability.ProgressWatchdog;
 import adris.altoclef.tasks.movement.TimeoutWanderTask;
+import adris.altoclef.tasks.slot.InventoryUiRecoveryTask;
 import adris.altoclef.util.helpers.StorageHelper;
 import adris.altoclef.util.helpers.WorldHelper;
 import adris.altoclef.util.time.TimerGame;
@@ -35,6 +36,7 @@ public class UnstuckChain extends SingleTaskChain {
     private TimerGame shimmyTaskTimer = new TimerGame(5);
     private boolean startedShimmying = false;
     private boolean watchdogMoveActive;
+    private boolean watchdogUiRecoveryActive;
 
     public UnstuckChain(TaskRunner runner) {
         super(runner);
@@ -191,6 +193,12 @@ public class UnstuckChain extends SingleTaskChain {
     private float handleWatchdog(AltoClef mod) {
         ProgressWatchdog watchdog = mod.getProgressWatchdog();
         ProgressWatchdog.RecoveryStage stage = watchdog.getStage();
+        if (watchdogUiRecoveryActive) {
+            if (mainTask != null && !mainTask.isFinished()) {
+                return 120;
+            }
+            completeUiRecovery(mod);
+        }
         if (watchdogMoveActive && stage == ProgressWatchdog.RecoveryStage.MOVE_TO_SAFE_POSITION) {
             if (mainTask != null && !mainTask.isFinished()) {
                 return 75;
@@ -214,6 +222,12 @@ public class UnstuckChain extends SingleTaskChain {
         mod.getStabilityDiagnostics().markStuckActivation();
         mod.logWarning("Stability recovery: " + stage.name().toLowerCase().replace('_', ' '));
         switch (stage) {
+            case RECOVER_UI -> {
+                watchdogUiRecoveryActive = true;
+                setTask(new InventoryUiRecoveryTask());
+                watchdog.markActionPerformed();
+                return 120;
+            }
             case RETRY_INTERACTION -> {
                 mod.getInputControls().release(Input.CLICK_LEFT);
                 mod.getInputControls().release(Input.CLICK_RIGHT);
@@ -268,6 +282,27 @@ public class UnstuckChain extends SingleTaskChain {
             watchdogMoveActive = false;
             setTask(null);
         }
+        if (watchdogUiRecoveryActive) {
+            completeUiRecovery(mod);
+        }
+    }
+
+    private void completeUiRecovery(AltoClef mod) {
+        InventoryUiRecoveryTask recovery = mainTask instanceof InventoryUiRecoveryTask task ? task : null;
+        watchdogUiRecoveryActive = false;
+        setTask(null);
+        Task root = mod.getUserTaskChain().getCurrentTask();
+        if (root != null) {
+            if (recovery != null && recovery.failed()) {
+                root.returnControlFromChild(recovery.failureReason());
+                mod.getStabilityDiagnostics().setRecentFailure(recovery.failureReason());
+            } else {
+                root.restartChildTask();
+            }
+        }
+        mod.getItemStorage().setDirty();
+        mod.getCraftingRecipeTracker().setDirty();
+        mod.getProgressWatchdog().markUiRecoveryCompleted();
     }
 
     @Override

@@ -20,7 +20,7 @@ public class EnsureFreeCursorSlotTask extends Task {
 
         if (!cursor.isEmpty()) {
             setDebugState("Safely stowing cursor stack");
-            StorageHelper.tryStowCursorStack(mod);
+            StorageHelper.tryStowCursorStack(mod, false);
             return null;
         }
         return null;

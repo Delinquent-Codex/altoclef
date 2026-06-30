@@ -19,6 +19,10 @@ public final class ProgressWatchdog {
     private int childTransitions;
     private boolean actionPerformed;
     private boolean progressObserved;
+    private RecoveryDomain domain = RecoveryDomain.MOVEMENT;
+    private int uiRecoveryCooldownTicks;
+    private int uiTransactionTicks;
+    private int uiRecoveryCompletions;
     private String failureReason = "none";
 
     public ProgressWatchdog() {
@@ -33,19 +37,24 @@ public final class ProgressWatchdog {
 
     public RecoveryStage observe(Fingerprint current, boolean eligible) {
         progressObserved = false;
+        if (uiRecoveryCooldownTicks > 0) uiRecoveryCooldownTicks--;
         if (!eligible || current == null) {
             resetObservation();
             return stage;
         }
         history.add(current);
+        uiTransactionTicks = current.uiTransaction() ? uiTransactionTicks + 1 : 0;
         if (previous == null) {
             previous = current;
             progressObserved = true;
             return stage;
         }
 
-        if (meaningfulProgress(previous, current)) {
-            reset();
+        if (!current.uiTransaction()) uiRecoveryCompletions = 0;
+        boolean repeatedUiCycle = uiRecoveryCooldownTicks == 0 && uiTransactionTicks >= 20 * 10
+                && current.uiTransaction();
+        if (!repeatedUiCycle && meaningfulProgress(previous, current)) {
+            resetRecoveryState();
             previous = current;
             progressObserved = true;
             return stage;
@@ -57,11 +66,18 @@ public final class ProgressWatchdog {
         stagnantTicks++;
         previous = current;
 
-        if (stage == RecoveryStage.NONE
+        if (stage == RecoveryStage.NONE && repeatedUiCycle) {
+            domain = RecoveryDomain.UI;
+            enter(uiRecoveryCompletions == 0 ? RecoveryStage.RECOVER_UI : RecoveryStage.RETURN_TO_PARENT,
+                    uiRecoveryCompletions == 0 ? "prolonged inventory/UI transaction"
+                            : "inventory/UI transaction repeated after recovery");
+        } else if (stage == RecoveryStage.NONE
                 && (stagnantTicks >= stuckTicksThreshold || childTransitions >= transitionLimit)) {
-            enter(RecoveryStage.RETRY_INTERACTION, "no meaningful progress");
+            domain = current.uiTransaction() ? RecoveryDomain.UI : RecoveryDomain.MOVEMENT;
+            enter(domain == RecoveryDomain.UI ? RecoveryStage.RECOVER_UI : RecoveryStage.RETRY_INTERACTION,
+                    domain == RecoveryDomain.UI ? "unresolved inventory/UI transaction" : "no meaningful progress");
         } else if (stage != RecoveryStage.NONE && ++stageTicks >= stageTicksThreshold) {
-            enter(stage.next(), failureReason);
+            enter(nextStage(stage, domain), failureReason);
         }
         return stage;
     }
@@ -91,6 +107,20 @@ public final class ProgressWatchdog {
     }
 
     public void reset() {
+        resetRecoveryState();
+        uiRecoveryCooldownTicks = 0;
+        uiTransactionTicks = 0;
+        uiRecoveryCompletions = 0;
+    }
+
+    public void markUiRecoveryCompleted() {
+        int completedRecoveries = uiRecoveryCompletions + 1;
+        reset();
+        uiRecoveryCooldownTicks = 20 * 10;
+        uiRecoveryCompletions = completedRecoveries;
+    }
+
+    private void resetRecoveryState() {
         previous = null;
         stage = RecoveryStage.NONE;
         stagnantTicks = 0;
@@ -99,11 +129,13 @@ public final class ProgressWatchdog {
         actionPerformed = false;
         progressObserved = false;
         failureReason = "none";
+        domain = RecoveryDomain.MOVEMENT;
         history.clear();
     }
 
     private void resetObservation() {
         previous = null;
+        uiTransactionTicks = 0;
         if (stage == RecoveryStage.NONE) {
             stagnantTicks = 0;
             childTransitions = 0;
@@ -123,14 +155,30 @@ public final class ProgressWatchdog {
 
     private static boolean meaningfulProgress(Fingerprint previous, Fingerprint current) {
         if (!Objects.equals(previous.dimension(), current.dimension())) return true;
+        if (!Objects.equals(previous.cursorStack(), current.cursorStack())) return true;
+        if (!"empty".equals(current.cursorStack())) return false;
         if (!Objects.equals(previous.blockPosition(), current.blockPosition())) return true;
-        if (previous.inventoryHash() != current.inventoryHash()) return true;
+        if (previous.inventoryHash() != current.inventoryHash()
+                && "empty".equals(previous.cursorStack()) && "empty".equals(current.cursorStack())) return true;
         return current.pathPosition() > previous.pathPosition()
                 && current.pathLength() == previous.pathLength();
     }
 
+    private static RecoveryStage nextStage(RecoveryStage current, RecoveryDomain domain) {
+        if (domain == RecoveryDomain.UI) {
+            return switch (current) {
+                case RECOVER_UI -> RecoveryStage.RESTART_CHILD_TASK;
+                case RESTART_CHILD_TASK -> RecoveryStage.RETURN_TO_PARENT;
+                case RETURN_TO_PARENT -> RecoveryStage.NONE;
+                default -> RecoveryStage.RECOVER_UI;
+            };
+        }
+        return current.next();
+    }
+
     public enum RecoveryStage {
         NONE,
+        RECOVER_UI,
         RETRY_INTERACTION,
         RECALCULATE_PATH,
         CLEAR_UNREACHABLE,
@@ -145,8 +193,14 @@ public final class ProgressWatchdog {
         }
     }
 
+    private enum RecoveryDomain {
+        MOVEMENT,
+        UI
+    }
+
     public record Fingerprint(String taskSignature, String blockPosition, int inventoryHash,
                               String dimension, int pathPosition, int pathLength,
-                              String interactionTarget, String recentFailure) {
+                              String interactionTarget, String recentFailure,
+                              String cursorStack, String screenType, String uiOperation, boolean uiTransaction) {
     }
 }

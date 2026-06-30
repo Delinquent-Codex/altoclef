@@ -633,7 +633,8 @@ public class AltoClef implements ClientModInitializer {
 
     private ProgressWatchdog.Fingerprint createProgressFingerprint() {
         TaskChain chain = taskRunner.getCurrentTaskChain();
-        String taskSignature = chain.getTasks().stream().map(Task::toString).reduce((a, b) -> a + " > " + b).orElse("idle");
+        List<Task> chainTasks = chain.getTasks();
+        String taskSignature = chainTasks.stream().map(Task::toString).reduce((a, b) -> a + " > " + b).orElse("idle");
         int inventoryHash = getItemStorage().getItemStacksPlayerInventory(true).stream()
                 .filter(stack -> !stack.isEmpty())
                 .map(stack -> BuiltInRegistries.ITEM.getKey(stack.getItem()) + "=" + stack.getCount())
@@ -642,9 +643,21 @@ public class AltoClef implements ClientModInitializer {
         int pathPosition = path == null ? -1 : path.getPosition();
         int pathLength = path == null ? -1 : path.getPath().length();
         String interaction = getItemStorage().getLastBlockPosInteraction().map(BlockPos::toShortString).orElse("none");
+        var cursor = StorageHelper.getItemStackInCursorSlot();
+        String cursorStack = cursor.isEmpty() ? "empty"
+                : BuiltInRegistries.ITEM.getKey(cursor.getItem()) + "=" + cursor.getCount();
+        var screen = Minecraft.getInstance().gui.screen();
+        String screenType = screen == null ? "none" : screen.getClass().getSimpleName();
+        String lowerTask = chainTasks.isEmpty() ? ""
+                : chainTasks.get(chainTasks.size() - 1).toString().toLowerCase(Locale.ROOT);
+        String uiOperation = chainTasks.isEmpty() ? "idle"
+                : chainTasks.get(chainTasks.size() - 1).getClass().getSimpleName();
+        boolean uiTransaction = !cursor.isEmpty() || !screenType.equals("none")
+                && (lowerTask.contains("craft") || lowerTask.contains("smelt")
+                || lowerTask.contains("container") || lowerTask.contains("slot"));
         return new ProgressWatchdog.Fingerprint(taskSignature, getPlayer().blockPosition().toShortString(), inventoryHash,
                 getWorld().dimension().identifier().toString(), pathPosition, pathLength, interaction,
-                stabilityDiagnostics.getRecentFailure());
+                stabilityDiagnostics.getRecentFailure(), cursorStack, screenType, uiOperation, uiTransaction);
     }
 
     /**

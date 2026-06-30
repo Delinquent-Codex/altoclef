@@ -3,6 +3,7 @@ package adris.altoclef.stability;
 import adris.altoclef.AltoClef;
 import adris.altoclef.tasksystem.Task;
 import adris.altoclef.tasksystem.TaskChain;
+import adris.altoclef.util.helpers.StorageHelper;
 import baritone.api.behavior.IPathingBehavior;
 import baritone.api.event.events.PathEvent;
 import baritone.api.pathing.path.IPathExecutor;
@@ -13,6 +14,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.StringJoiner;
 import net.minecraft.core.registries.BuiltInRegistries;
+import net.minecraft.client.Minecraft;
 import net.minecraft.world.item.ItemStack;
 
 public final class StabilityDiagnostics {
@@ -109,6 +111,10 @@ public final class StabilityDiagnostics {
         DiagnosticSample sample = captureSample();
         RollingTiming.Stats tickStats = tickTimings.stats();
         RollingTiming.Stats scanStats = closeScanTimings.stats();
+        ItemStack cursor = StorageHelper.getItemStackInCursorSlot();
+        String cursorState = cursor.isEmpty() ? "empty"
+                : BuiltInRegistries.ITEM.getKey(cursor.getItem()) + "=" + cursor.getCount();
+        var screen = Minecraft.getInstance().gui.screen();
         return new Snapshot(
                 recordingEnabled,
                 sample.taskChain(),
@@ -128,6 +134,8 @@ public final class StabilityDiagnostics {
                 mod.getBlockScanner().getLastAsyncScanNanos() / 1_000_000.0,
                 mod.getBlockScanner().getLastAsyncChunksVisited(),
                 mod.getBlockScanner().getLastClosePositionsVisited(),
+                cursorState,
+                screen == null ? "none" : screen.getClass().getSimpleName(),
                 tickStats.medianNanos() / 1_000_000.0,
                 tickStats.p95Nanos() / 1_000_000.0,
                 scanStats.medianNanos() / 1_000_000.0,
@@ -222,12 +230,14 @@ public final class StabilityDiagnostics {
                            String inventoryReservations, String survivalOverride, String recentFailure,
                            int repeatedTransitions, int stuckActivations, double pathCalculationsPerSecond,
                            double tickMillis, double closeScanMillis, double asyncScanMillis,
-                           int asyncChunks, int closePositions, double tickMedianMillis, double tickP95Millis,
+                           int asyncChunks, int closePositions, String cursorState, String screenType,
+                           double tickMedianMillis, double tickP95Millis,
                            double scanMedianMillis, double scanP95Millis, int recordedSamples) {
         public List<String> conciseLines() {
             return List.of(
                     "task=" + taskChain + " | process=" + baritoneProcess + " | goal=" + goal + " | path=" + pathStatus,
                     "progress=" + millisSinceProgress + "ms | recovery=" + recoveryStage + " | survival=" + survivalOverride
+                            + " | cursor=" + cursorState + " | screen=" + screenType
                             + " | reservations=" + inventoryReservations + " | failure=" + recentFailure,
                     String.format("transitions=%d | stuck=%d | pathCalc=%.2f/s | tick=%.2fms med/p95=%.2f/%.2f | scan=%.2fms med/p95=%.2f/%.2f (%d cells, %.2fms/%d chunks) | recorder=%s(%d/%d)",
                             repeatedTransitions, stuckActivations, pathCalculationsPerSecond, tickMillis,

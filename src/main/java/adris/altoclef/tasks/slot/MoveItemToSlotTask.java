@@ -14,6 +14,7 @@ import java.util.function.Function;
 import net.minecraft.world.inventory.ContainerInput;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
+import net.minecraft.core.registries.BuiltInRegistries;
 
 public class MoveItemToSlotTask extends Task {
 
@@ -47,6 +48,8 @@ public class MoveItemToSlotTask extends Task {
             //      Right click on destination slot (one turn)
             ItemStack currentHeld = StorageHelper.getItemStackInCursorSlot();
             ItemStack atTarget = StorageHelper.getItemStackInSlot(destination);
+            setDebugState("held=" + describe(currentHeld) + ", destination=" + describe(atTarget)
+                    + ", required=" + toMove.getTargetCount());
 
             // Items that CAN be moved to that slot.
             Item[] validItems = toMove.getMatches();//Arrays.stream(_toMove.getMatches()).filter(item -> mod.getItemStorage().getItemCount(item) >= _toMove.getTargetCount()).toArray(Item[]::new);
@@ -135,5 +138,9 @@ public class MoveItemToSlotTask extends Task {
             }
         }
         return Optional.ofNullable(bestMatch);
+    }
+
+    private static String describe(ItemStack stack) {
+        return stack.isEmpty() ? "empty" : BuiltInRegistries.ITEM.getKey(stack.getItem()) + "=" + stack.getCount();
     }
 }
