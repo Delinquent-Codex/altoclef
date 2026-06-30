@@ -655,9 +655,12 @@ public class AltoClef implements ClientModInitializer {
         boolean uiTransaction = !cursor.isEmpty() || !screenType.equals("none")
                 && (lowerTask.contains("craft") || lowerTask.contains("smelt")
                 || lowerTask.contains("container") || lowerTask.contains("slot"));
+        boolean passiveUiWait = cursor.isEmpty() && !screenType.equals("none")
+                && ProgressWatchdog.isPassiveUiWait(lowerTask);
         return new ProgressWatchdog.Fingerprint(taskSignature, getPlayer().blockPosition().toShortString(), inventoryHash,
                 getWorld().dimension().identifier().toString(), pathPosition, pathLength, interaction,
-                stabilityDiagnostics.getRecentFailure(), cursorStack, screenType, uiOperation, uiTransaction);
+                stabilityDiagnostics.getRecentFailure(), cursorStack, screenType, uiOperation, uiTransaction,
+                passiveUiWait);
     }
 
     /**

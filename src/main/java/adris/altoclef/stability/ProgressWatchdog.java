@@ -43,6 +43,12 @@ public final class ProgressWatchdog {
             resetObservation();
             return stage;
         }
+        if (current.passiveUiWait() && "empty".equals(current.cursorStack())) {
+            resetRecoveryState();
+            uiTransactionTicks = 0;
+            uiStates.clear();
+            return stage;
+        }
         history.add(current);
         boolean repeatedUiState = false;
         if (current.uiTransaction()) {
@@ -228,7 +234,14 @@ public final class ProgressWatchdog {
     public record Fingerprint(String taskSignature, String blockPosition, int inventoryHash,
                               String dimension, int pathPosition, int pathLength,
                               String interactionTarget, String recentFailure,
-                              String cursorStack, String screenType, String uiOperation, boolean uiTransaction) {
+                              String cursorStack, String screenType, String uiOperation, boolean uiTransaction,
+                              boolean passiveUiWait) {
+    }
+
+    public static boolean isPassiveUiWait(String lowerTaskDescription) {
+        return lowerTaskDescription.contains("waiting")
+                && (lowerTaskDescription.contains("smelt") || lowerTaskDescription.contains("furnace")
+                || lowerTaskDescription.contains("smoker") || lowerTaskDescription.contains("blast"));
     }
 
     private record UiState(int inventoryHash, String cursorStack, String screenType, String uiOperation) {

@@ -138,9 +138,28 @@ class ProgressWatchdogTest {
         assertEquals(ProgressWatchdog.RecoveryStage.RETURN_TO_PARENT, watchdog.getStage());
     }
 
+    @Test
+    void doesNotRecoverLegitimateSmeltingWait() {
+        ProgressWatchdog watchdog = new ProgressWatchdog(2, 2, 2);
+        ProgressWatchdog.Fingerprint waiting = new ProgressWatchdog.Fingerprint(
+                "DoSmeltInFurnaceTask[Waiting...]", "0,0,0", 1, "overworld", -1, -1,
+                "none", "none", "empty", "FurnaceScreen", "DoSmeltInFurnaceTask", true, true);
+
+        for (int i = 0; i < 500; i++) watchdog.observe(waiting, true);
+
+        assertEquals(ProgressWatchdog.RecoveryStage.NONE, watchdog.getStage());
+    }
+
+    @Test
+    void identifiesOnlyPassiveContainerWaits() {
+        assertTrue(ProgressWatchdog.isPassiveUiWait("dosmeltinfurnacetask[waiting...]"));
+        assertFalse(ProgressWatchdog.isPassiveUiWait("craftgenericmanuallytask[moving item to slot]"));
+        assertFalse(ProgressWatchdog.isPassiveUiWait("timeoutwandertask[waiting for path]"));
+    }
+
     private static ProgressWatchdog.Fingerprint fingerprint(String task, String position, int inventory, int path) {
         return new ProgressWatchdog.Fingerprint(task, position, inventory, "overworld", path, 10,
-                "none", "none", "empty", "none", task, false);
+                "none", "none", "empty", "none", task, false, false);
     }
 
     private static ProgressWatchdog.Fingerprint uiFingerprint(String task, String cursor) {
@@ -149,6 +168,6 @@ class ProgressWatchdogTest {
 
     private static ProgressWatchdog.Fingerprint uiFingerprint(String task, int inventory, String cursor) {
         return new ProgressWatchdog.Fingerprint(task, "0,0,0", inventory, "overworld", -1, -1,
-                "none", "none", cursor, "InventoryScreen", task, true);
+                "none", "none", cursor, "InventoryScreen", task, true, false);
     }
 }
