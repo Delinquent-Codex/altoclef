@@ -18,6 +18,11 @@ import adris.altoclef.multiversion.DrawContextWrapper;
 import adris.altoclef.multiversion.versionedfields.Blocks;
 import adris.altoclef.tasksystem.Task;
 import adris.altoclef.tasksystem.TaskRunner;
+import adris.altoclef.tasksystem.TaskChain;
+import adris.altoclef.stability.StabilityDiagnostics;
+import adris.altoclef.stability.SurvivalController;
+import adris.altoclef.stability.ProgressWatchdog;
+import adris.altoclef.stability.InventoryPolicy;
 import adris.altoclef.trackers.*;
 import adris.altoclef.trackers.storage.ContainerSubTracker;
 import adris.altoclef.trackers.storage.ItemStorageTracker;
@@ -31,6 +36,7 @@ import baritone.Baritone;
 import baritone.altoclef.AltoClefSettings;
 import baritone.api.BaritoneAPI;
 import baritone.api.event.events.WorldEvent;
+import baritone.api.event.events.PathEvent;
 import baritone.api.event.events.type.EventState;
 import baritone.api.event.listener.AbstractGameEventListener;
 import net.fabricmc.api.ClientModInitializer;
@@ -38,8 +44,12 @@ import net.minecraft.client.Minecraft;
 import net.minecraft.client.multiplayer.ClientLevel;
 import net.minecraft.client.multiplayer.MultiPlayerGameMode;
 import net.minecraft.client.player.LocalPlayer;
+import net.minecraft.core.BlockPos;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.Items;
+import adris.altoclef.multiversion.item.ItemVer;
+import net.minecraft.core.registries.BuiltInRegistries;
+import baritone.api.pathing.path.IPathExecutor;
 import org.lwjgl.glfw.GLFW;
 
 import java.util.*;
@@ -88,6 +98,10 @@ public class AltoClef implements ClientModInitializer {
     private Task storedTask;
     private boolean runIdleCommandWhenReady;
     private RenderLifecycleRegressionHarness renderRegressionHarness;
+    private StabilityDiagnostics stabilityDiagnostics;
+    private SurvivalController survivalController;
+    private ProgressWatchdog progressWatchdog;
+    private InventoryPolicy inventoryPolicy;
 
     private static AltoClef instance;
     private boolean loadInitialized;
@@ -150,6 +164,10 @@ public class AltoClef implements ClientModInitializer {
         chunkTracker = new SimpleChunkTracker(this);
         miscBlockTracker = new MiscBlockTracker(this);
         craftingRecipeTracker = new CraftingRecipeTracker(trackerManager);
+        stabilityDiagnostics = new StabilityDiagnostics(this);
+        survivalController = new SurvivalController();
+        progressWatchdog = new ProgressWatchdog();
+        inventoryPolicy = new InventoryPolicy(this);
 
         // Renderers
         commandStatusOverlay = new CommandStatusOverlay();
@@ -196,7 +214,9 @@ public class AltoClef implements ClientModInitializer {
         EventBus.subscribe(ClientTickEvent.class, evt -> {
             long nanos = System.nanoTime();
             onClientTick();
-            altoClefTickChart.pushTickNanos(System.nanoTime()-nanos);
+            long tickNanos = System.nanoTime() - nanos;
+            stabilityDiagnostics.tick(tickNanos);
+            altoClefTickChart.pushTickNanos(tickNanos);
         });
 
         // Render
@@ -215,6 +235,11 @@ public class AltoClef implements ClientModInitializer {
                 if (event.getState() == EventState.PRE && event.getWorld() == null) {
                     onWorldUnload();
                 }
+            }
+
+            @Override
+            public void onPathEvent(PathEvent event) {
+                stabilityDiagnostics.onPathEvent(event);
             }
         });
         renderRegressionHarness = RenderLifecycleRegressionHarness.createIfEnabled(this);
@@ -247,7 +272,10 @@ public class AltoClef implements ClientModInitializer {
         miscBlockTracker.tick();
         trackerManager.tick();
         blockScanner.tick();
+        updateSurvivalController();
+        inventoryPolicy.tick();
         taskRunner.tick();
+        updateProgressWatchdog();
 
         messageSender.tick();
 
@@ -283,6 +311,18 @@ public class AltoClef implements ClientModInitializer {
         runIdleCommandWhenReady = false;
         if (blockScanner != null) {
             blockScanner.reset();
+        }
+        if (stabilityDiagnostics != null) {
+            stabilityDiagnostics.resetWorldState();
+        }
+        if (survivalController != null) {
+            survivalController.reset();
+        }
+        if (progressWatchdog != null) {
+            progressWatchdog.reset();
+        }
+        if (inventoryPolicy != null) {
+            inventoryPolicy.reset();
         }
         stopTasks();
     }
@@ -537,6 +577,90 @@ public class AltoClef implements ClientModInitializer {
      */
     public InputControls getInputControls() {
         return inputControls;
+    }
+
+    public StabilityDiagnostics getStabilityDiagnostics() {
+        return stabilityDiagnostics;
+    }
+
+    public SurvivalController getSurvivalController() {
+        return survivalController;
+    }
+
+    public ProgressWatchdog getProgressWatchdog() {
+        return progressWatchdog;
+    }
+
+    public InventoryPolicy getInventoryPolicy() {
+        return inventoryPolicy;
+    }
+
+    private void updateSurvivalController() {
+        if (!inGame()) {
+            survivalController.reset();
+            return;
+        }
+        boolean hasFood = getItemStorage().getItemStacksPlayerInventory(true).stream()
+                .anyMatch(stack -> !stack.isEmpty() && ItemVer.isFood(stack) && stack.getItem() != Items.SPIDER_EYE);
+        int nearbyHostiles = (int) getEntityTracker().getHostiles().stream()
+                .filter(hostile -> hostile.closerThan(getPlayer(), 10)).count();
+        BlockPos overhead = getPlayer().blockPosition().above(2);
+        boolean solidOverhead = !getWorld().getBlockState(overhead).isAir()
+                && getWorld().getBlockState(overhead).getFluidState().isEmpty();
+        boolean hasWeapon = getItemStorage().hasItem(
+                Items.WOODEN_SWORD, Items.STONE_SWORD, Items.IRON_SWORD, Items.GOLDEN_SWORD, Items.DIAMOND_SWORD,
+                Items.NETHERITE_SWORD, Items.WOODEN_AXE, Items.STONE_AXE, Items.IRON_AXE, Items.GOLDEN_AXE,
+                Items.DIAMOND_AXE, Items.NETHERITE_AXE);
+        SurvivalController.State state = survivalController.tick(new SurvivalController.Signals(
+                getPlayer().getHealth(), getPlayer().getFoodData().getFoodLevel(), getPlayer().getAirSupply(),
+                getPlayer().getMaxAirSupply(), hasFood, getPlayer().isUnderWater(), solidOverhead,
+                getPlayer().isInLava(), getPlayer().isOnFire(), getPlayer().isInWall(),
+                mlgBucketChain.isFalling(this), nearbyHostiles, getItemStorage().hasItem(Items.SHIELD), hasWeapon));
+        stabilityDiagnostics.setSurvivalOverride(state == SurvivalController.State.NONE ? null : state.name());
+    }
+
+    private void updateProgressWatchdog() {
+        boolean eligible = inGame() && taskRunner.isActive()
+                && survivalController.getState() == SurvivalController.State.NONE
+                && taskRunner.getCurrentTaskChain() != null;
+        ProgressWatchdog.Fingerprint fingerprint = eligible ? createProgressFingerprint() : null;
+        ProgressWatchdog.RecoveryStage stage = progressWatchdog.observe(fingerprint, eligible);
+        stabilityDiagnostics.setRecoveryStage(stage == ProgressWatchdog.RecoveryStage.NONE ? null : stage.name());
+        if (progressWatchdog.progressObserved()) {
+            stabilityDiagnostics.markProgress();
+        }
+    }
+
+    private ProgressWatchdog.Fingerprint createProgressFingerprint() {
+        TaskChain chain = taskRunner.getCurrentTaskChain();
+        List<Task> chainTasks = chain.getTasks();
+        String taskSignature = chainTasks.stream().map(Task::toString).reduce((a, b) -> a + " > " + b).orElse("idle");
+        int inventoryHash = getItemStorage().getItemStacksPlayerInventory(true).stream()
+                .filter(stack -> !stack.isEmpty())
+                .map(stack -> BuiltInRegistries.ITEM.getKey(stack.getItem()) + "=" + stack.getCount())
+                .sorted().toList().hashCode();
+        IPathExecutor path = getClientBaritone().getPathingBehavior().getCurrent();
+        int pathPosition = path == null ? -1 : path.getPosition();
+        int pathLength = path == null ? -1 : path.getPath().length();
+        String interaction = getItemStorage().getLastBlockPosInteraction().map(BlockPos::toShortString).orElse("none");
+        var cursor = StorageHelper.getItemStackInCursorSlot();
+        String cursorStack = cursor.isEmpty() ? "empty"
+                : BuiltInRegistries.ITEM.getKey(cursor.getItem()) + "=" + cursor.getCount();
+        var screen = Minecraft.getInstance().gui.screen();
+        String screenType = screen == null ? "none" : screen.getClass().getSimpleName();
+        String lowerTask = chainTasks.isEmpty() ? ""
+                : chainTasks.get(chainTasks.size() - 1).toString().toLowerCase(Locale.ROOT);
+        String uiOperation = chainTasks.isEmpty() ? "idle"
+                : chainTasks.get(chainTasks.size() - 1).getClass().getSimpleName();
+        boolean uiTransaction = !cursor.isEmpty() || !screenType.equals("none")
+                && (lowerTask.contains("craft") || lowerTask.contains("smelt")
+                || lowerTask.contains("container") || lowerTask.contains("slot"));
+        boolean passiveUiWait = cursor.isEmpty() && !screenType.equals("none")
+                && ProgressWatchdog.isPassiveUiWait(lowerTask);
+        return new ProgressWatchdog.Fingerprint(taskSignature, getPlayer().blockPosition().toShortString(), inventoryHash,
+                getWorld().dimension().identifier().toString(), pathPosition, pathLength, interaction,
+                stabilityDiagnostics.getRecentFailure(), cursorStack, screenType, uiOperation, uiTransaction,
+                passiveUiWait);
     }
 
     /**

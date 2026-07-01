@@ -23,6 +23,7 @@ import adris.altoclef.tasks.speedrun.beatgame.prioritytask.prioritycalculators.D
 import adris.altoclef.tasks.speedrun.beatgame.prioritytask.prioritycalculators.StaticItemPriorityCalculator;
 import adris.altoclef.tasks.speedrun.beatgame.prioritytask.tasks.*;
 import adris.altoclef.tasksystem.Task;
+import adris.altoclef.stability.InventoryPolicy;
 import adris.altoclef.trackers.EntityTracker;
 import adris.altoclef.trackers.storage.ItemStorageTracker;
 import adris.altoclef.util.*;
@@ -351,15 +352,22 @@ public class BeatMinecraftTask extends Task {
     }
 
     public static void throwAwaySlots(AltoClef mod, List<Slot> slots) {
-        for (Slot slot : slots) {
-            if (Slot.isCursor(slot)) {
-              /*  if (!mod.getControllerExtras().isBreakingBlock()) {
-                    LookHelper.randomOrientation(mod);
-                }*/
+        ItemStack cursor = StorageHelper.getItemStackInCursorSlot();
+        if (!cursor.isEmpty()) {
+            boolean requestedDiscard = slots.stream().anyMatch(Slot::isCursor);
+            if (requestedDiscard && ItemHelper.canThrowAwayStack(mod, cursor)) {
                 mod.getSlotHandler().clickSlot(Slot.UNDEFINED, 0, ContainerInput.PICKUP);
             } else {
-                mod.getSlotHandler().clickSlot(slot, 0, ContainerInput.PICKUP);
+                StorageHelper.tryStowCursorStack(mod);
             }
+            return;
+        }
+        for (Slot slot : slots) {
+            if (Slot.isCursor(slot)) continue;
+            ItemStack stack = StorageHelper.getItemStackInSlot(slot);
+            if (!ItemHelper.canThrowAwayStack(mod, stack)) continue;
+            mod.getSlotHandler().clickSlot(slot, 0, ContainerInput.PICKUP);
+            return;
         }
     }
 
@@ -1368,7 +1376,13 @@ public class BeatMinecraftTask extends Task {
         }
 
 
-        if (!StorageHelper.isBigCraftingOpen() && !StorageHelper.isFurnaceOpen() && !StorageHelper.isSmokerOpen() && !StorageHelper.isBlastFurnaceOpen() && !StorageHelper.isChestOpen()) {
+        Task activeChild = getSubTask();
+        boolean childTransactionActive = activeChild != null && activeChild.isActive() && !activeChild.isFinished();
+        boolean screenOpen = getInstance().gui.screen() != null;
+        if (InventoryPolicy.canRunRootInventoryCleanup(childTransactionActive, screenOpen)
+                && !StorageHelper.isBigCraftingOpen() && !StorageHelper.isFurnaceOpen()
+                && !StorageHelper.isSmokerOpen() && !StorageHelper.isBlastFurnaceOpen()
+                && !StorageHelper.isChestOpen()) {
             //can cause the bot to get stuck
             if (itemStorage.getItemCount(Items.FURNACE) > 1) {
                 return new PlaceBlockNearbyTask(Blocks.FURNACE);

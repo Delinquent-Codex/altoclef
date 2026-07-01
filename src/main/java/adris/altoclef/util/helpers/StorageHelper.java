@@ -20,6 +20,7 @@ import adris.altoclef.util.slots.Slot;
 import baritone.utils.ToolSet;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.screens.ChatScreen;
+import net.minecraft.client.gui.screens.inventory.InventoryScreen;
 import net.minecraft.client.gui.screens.PauseScreen;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.client.gui.screens.options.OptionsSubScreen;
@@ -467,6 +468,17 @@ public class StorageHelper {
         return isScreenOpenInner(screen -> screen instanceof InventoryMenu);
     }
 
+    public static boolean isPlayerInventoryScreenOpen() {
+        return Minecraft.getInstance().gui.screen() instanceof InventoryScreen;
+    }
+
+    public static void openPlayerInventoryScreen() {
+        LocalPlayer player = Minecraft.getInstance().player;
+        if (player != null && !isPlayerInventoryScreenOpen()) {
+            Minecraft.getInstance().gui.setScreen(new InventoryScreen(player));
+        }
+    }
+
     public static boolean isFurnaceOpen() {
         return isScreenOpenInner(screen -> screen instanceof FurnaceMenu);
     }
@@ -636,6 +648,74 @@ public class StorageHelper {
             }
         }
         return ItemStack.EMPTY;
+    }
+
+    public static boolean tryStowCursorStack(AltoClef mod) {
+        return tryStowCursorStack(mod, true);
+    }
+
+    public static boolean tryStowCursorStack(AltoClef mod, boolean preferSource) {
+        ItemStack cursor = getItemStackInCursorSlot();
+        if (cursor.isEmpty()) return true;
+
+        if (preferSource && mod.getSlotHandler().hasTrackedCursorSource()) {
+            if (mod.getSlotHandler().tryReturnCursorToSource()) return true;
+            if (mod.getSlotHandler().hasTrackedCursorSource()) return false;
+        }
+
+        Optional<Slot> fit = findSafePlayerInventoryDestination(cursor)
+                .or(() -> mod.getItemStorage().getSlotThatCanFitInPlayerInventory(cursor, false));
+        if (fit.isPresent()) {
+            mod.getSlotHandler().clickSlot(fit.get(), 0, ContainerInput.PICKUP);
+            return true;
+        }
+        if (ItemHelper.canThrowAwayStack(mod, cursor)) {
+            mod.getSlotHandler().clickSlot(Slot.UNDEFINED, 0, ContainerInput.PICKUP);
+            return true;
+        }
+        Optional<Slot> garbage = getGarbageSlot(mod);
+        if (garbage.isPresent()) {
+            mod.getSlotHandler().clickSlot(garbage.get(), 0, ContainerInput.PICKUP);
+            return true;
+        }
+        mod.getStabilityDiagnostics().setRecentFailure("no safe destination for cursor "
+                + cursor.getItem().getDescriptionId());
+        return false;
+    }
+
+    public static List<Slot> getLivePlayerInventorySlots(ItemTarget target) {
+        LocalPlayer player = Minecraft.getInstance().player;
+        if (player == null) return List.of();
+        List<Slot> result = new ArrayList<>();
+        AbstractContainerMenu menu = player.containerMenu;
+        for (int windowSlot = 0; windowSlot < menu.slots.size(); windowSlot++) {
+            net.minecraft.world.inventory.Slot candidate = menu.getSlot(windowSlot);
+            int inventorySlot = candidate.getContainerSlot();
+            if (candidate.container == player.getInventory() && inventorySlot >= 0 && inventorySlot < 36
+                    && target.matches(candidate.getItem().getItem())) {
+                result.add(Slot.getFromCurrentScreen(windowSlot));
+            }
+        }
+        return result;
+    }
+
+    private static Optional<Slot> findSafePlayerInventoryDestination(ItemStack cursor) {
+        LocalPlayer player = Minecraft.getInstance().player;
+        if (player == null || cursor.isEmpty()) return Optional.empty();
+        AbstractContainerMenu menu = player.containerMenu;
+        for (int windowSlot = 0; windowSlot < menu.slots.size(); windowSlot++) {
+            net.minecraft.world.inventory.Slot candidate = menu.getSlot(windowSlot);
+            int inventorySlot = candidate.getContainerSlot();
+            if (candidate.container != player.getInventory() || inventorySlot < 0 || inventorySlot >= 36
+                    || !candidate.mayPlace(cursor)) continue;
+            ItemStack present = candidate.getItem();
+            int available = candidate.getMaxStackSize(cursor) - present.getCount();
+            if ((present.isEmpty() || ItemHelper.canStackTogether(cursor, present))
+                    && available >= cursor.getCount()) {
+                return Optional.of(Slot.getFromCurrentScreen(windowSlot));
+            }
+        }
+        return Optional.empty();
     }
 
     public static int getBrewingStandFuel() {

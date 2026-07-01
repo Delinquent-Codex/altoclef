@@ -8,6 +8,10 @@ import adris.altoclef.tasks.construction.DestroyBlockTask;
 import adris.altoclef.tasks.movement.GetOutOfWaterTask;
 import adris.altoclef.tasks.movement.SafeRandomShimmyTask;
 import adris.altoclef.tasksystem.TaskRunner;
+import adris.altoclef.tasksystem.Task;
+import adris.altoclef.stability.ProgressWatchdog;
+import adris.altoclef.tasks.movement.TimeoutWanderTask;
+import adris.altoclef.tasks.slot.InventoryUiRecoveryTask;
 import adris.altoclef.util.helpers.StorageHelper;
 import adris.altoclef.util.helpers.WorldHelper;
 import adris.altoclef.util.time.TimerGame;
@@ -31,6 +35,8 @@ public class UnstuckChain extends SingleTaskChain {
     private boolean interruptedEating = false;
     private TimerGame shimmyTaskTimer = new TimerGame(5);
     private boolean startedShimmying = false;
+    private boolean watchdogMoveActive;
+    private boolean watchdogUiRecoveryActive;
 
     public UnstuckChain(TaskRunner runner) {
         super(runner);
@@ -154,6 +160,11 @@ public class UnstuckChain extends SingleTaskChain {
             return Float.NEGATIVE_INFINITY;
         }
 
+        float watchdogPriority = handleWatchdog(mod);
+        if (watchdogPriority > Float.NEGATIVE_INFINITY) {
+            return watchdogPriority;
+        }
+
         Player player = mod.getPlayer();
         posHistory.addFirst(player.position());
         if (posHistory.size() > 500) {
@@ -179,6 +190,87 @@ public class UnstuckChain extends SingleTaskChain {
         return Float.NEGATIVE_INFINITY;
     }
 
+    private float handleWatchdog(AltoClef mod) {
+        ProgressWatchdog watchdog = mod.getProgressWatchdog();
+        ProgressWatchdog.RecoveryStage stage = watchdog.getStage();
+        if (watchdogUiRecoveryActive) {
+            if (mainTask != null && !mainTask.isFinished()) {
+                return 120;
+            }
+            completeUiRecovery(mod);
+        }
+        if (watchdogMoveActive && stage == ProgressWatchdog.RecoveryStage.MOVE_TO_SAFE_POSITION) {
+            if (mainTask != null && !mainTask.isFinished()) {
+                return 75;
+            }
+            watchdogMoveActive = false;
+            setTask(null);
+        } else if (watchdogMoveActive) {
+            watchdogMoveActive = false;
+            setTask(null);
+        }
+        if (stage == ProgressWatchdog.RecoveryStage.NONE || !watchdog.shouldPerformAction()) {
+            return Float.NEGATIVE_INFINITY;
+        }
+
+        Task root = mod.getUserTaskChain().getCurrentTask();
+        if (root == null) {
+            watchdog.reset();
+            return Float.NEGATIVE_INFINITY;
+        }
+
+        mod.getStabilityDiagnostics().markStuckActivation();
+        mod.logWarning("Stability recovery: " + stage.name().toLowerCase().replace('_', ' '));
+        switch (stage) {
+            case RECOVER_UI -> {
+                watchdogUiRecoveryActive = true;
+                setTask(new InventoryUiRecoveryTask());
+                watchdog.markActionPerformed();
+                return 120;
+            }
+            case RETRY_INTERACTION -> {
+                mod.getInputControls().release(Input.CLICK_LEFT);
+                mod.getInputControls().release(Input.CLICK_RIGHT);
+                root.retryDeepestTask();
+                watchdog.markActionPerformed();
+            }
+            case RECALCULATE_PATH -> {
+                mod.getClientBaritone().getPathingBehavior().cancelEverything();
+                watchdog.markActionPerformed();
+            }
+            case CLEAR_UNREACHABLE -> {
+                mod.getBlockScanner().clearTemporaryUnreachable();
+                mod.getEntityTracker().clearTemporaryUnreachable();
+                watchdog.markActionPerformed();
+            }
+            case MOVE_TO_SAFE_POSITION -> {
+                watchdogMoveActive = true;
+                setTask(new TimeoutWanderTask(4));
+                watchdog.markActionPerformed();
+                return 75;
+            }
+            case REEVALUATE_RESOURCE -> {
+                mod.getBlockScanner().requestRescan();
+                mod.getItemStorage().setDirty();
+                mod.getCraftingRecipeTracker().setDirty();
+                watchdog.markActionPerformed();
+            }
+            case RESTART_CHILD_TASK -> {
+                root.restartChildTask();
+                watchdog.markActionPerformed();
+            }
+            case RETURN_TO_PARENT -> {
+                String reason = "watchdog exhausted recovery after " + watchdog.getFailureReason();
+                root.returnControlFromChild(reason);
+                mod.getStabilityDiagnostics().setRecentFailure(reason);
+                watchdog.markActionPerformed();
+            }
+            case NONE -> {
+            }
+        }
+        return Float.NEGATIVE_INFINITY;
+    }
+
     @Override
     public boolean isActive() {
         return true;
@@ -186,7 +278,31 @@ public class UnstuckChain extends SingleTaskChain {
 
     @Override
     protected void onTaskFinish(AltoClef mod) {
+        if (watchdogMoveActive) {
+            watchdogMoveActive = false;
+            setTask(null);
+        }
+        if (watchdogUiRecoveryActive) {
+            completeUiRecovery(mod);
+        }
+    }
 
+    private void completeUiRecovery(AltoClef mod) {
+        InventoryUiRecoveryTask recovery = mainTask instanceof InventoryUiRecoveryTask task ? task : null;
+        watchdogUiRecoveryActive = false;
+        setTask(null);
+        Task root = mod.getUserTaskChain().getCurrentTask();
+        if (root != null) {
+            if (recovery != null && recovery.failed()) {
+                root.returnControlFromChild(recovery.failureReason());
+                mod.getStabilityDiagnostics().setRecentFailure(recovery.failureReason());
+            } else {
+                root.restartChildTask();
+            }
+        }
+        mod.getItemStorage().setDirty();
+        mod.getCraftingRecipeTracker().setDirty();
+        mod.getProgressWatchdog().markUiRecoveryCompleted();
     }
 
     @Override

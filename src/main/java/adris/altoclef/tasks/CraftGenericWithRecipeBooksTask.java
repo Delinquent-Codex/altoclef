@@ -9,7 +9,6 @@ import adris.altoclef.tasksystem.ITaskUsesCraftingGrid;
 import adris.altoclef.tasksystem.Task;
 import adris.altoclef.util.JankCraftingRecipeMapping;
 import adris.altoclef.util.RecipeTarget;
-import adris.altoclef.util.helpers.ItemHelper;
 import adris.altoclef.util.helpers.StorageHelper;
 import adris.altoclef.util.slots.CraftingTableSlot;
 import adris.altoclef.util.slots.PlayerSlot;
@@ -17,12 +16,14 @@ import adris.altoclef.util.slots.Slot;
 import java.util.Optional;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.player.LocalPlayer;
-import net.minecraft.world.inventory.ContainerInput;
 import net.minecraft.world.item.ItemStack;
 
 public class CraftGenericWithRecipeBooksTask extends Task implements ITaskUsesCraftingGrid {
+    private static final int MANUAL_FALLBACK_TICKS = 40;
 
     private final RecipeTarget target;
+    private int noOutputTicks;
+    private boolean manualFallback;
 
     public CraftGenericWithRecipeBooksTask(RecipeTarget target) {
         this.target = target;
@@ -33,7 +34,8 @@ public class CraftGenericWithRecipeBooksTask extends Task implements ITaskUsesCr
      */
     @Override
     protected void onStart() {
-
+        noOutputTicks = 0;
+        manualFallback = false;
     }
 
     /**
@@ -46,6 +48,10 @@ public class CraftGenericWithRecipeBooksTask extends Task implements ITaskUsesCr
     protected Task onTick() {
         AltoClef mod = AltoClef.getInstance();
 
+        if (manualFallback) {
+            return new CraftGenericManuallyTask(target);
+        }
+
         // Check if the big crafting UI or player inventory UI is open
         boolean isBigCraftingOpen = StorageHelper.isBigCraftingOpen();
         boolean isPlayerInventoryOpen = StorageHelper.isPlayerInventoryOpen();
@@ -53,38 +59,21 @@ public class CraftGenericWithRecipeBooksTask extends Task implements ITaskUsesCr
         // Get the item stack in the cursor slot
         ItemStack cursorStack = StorageHelper.getItemStackInCursorSlot();
 
-        // Declare variables for the slots to move to and the garbage slot
-        Optional<Slot> moveTo;
-        Optional<Slot> garbage;
-
         // Check if neither the big crafting UI nor the player inventory UI is open
         if (!isBigCraftingOpen && !isPlayerInventoryOpen) {
             // Check if the cursor stack is not empty
             if (!cursorStack.isEmpty()) {
-                // Find a slot in the player's inventory to move the item to
-                moveTo = mod.getItemStorage().getSlotThatCanFitInPlayerInventory(cursorStack, false);
-                if (moveTo.isPresent()) {
-                    // Click the slot to move the item to the player's inventory
-                    mod.getSlotHandler().clickSlot(moveTo.get(), 0, ContainerInput.PICKUP);
-                    return null;
-                }
-                // Check if the item can be thrown away
-                if (ItemHelper.canThrowAwayStack(mod, cursorStack)) {
-                    // Click an undefined slot to throw away the item
-                    mod.getSlotHandler().clickSlot(Slot.UNDEFINED, 0, ContainerInput.PICKUP);
-                    return null;
-                }
-                // Find the garbage slot and click it to move the item there
-                garbage = StorageHelper.getGarbageSlot(mod);
-                if (garbage.isPresent()) {
-                    mod.getSlotHandler().clickSlot(garbage.get(), 0, ContainerInput.PICKUP);
-                }
-                // Click an undefined slot to clear the cursor stack
-                mod.getSlotHandler().clickSlot(Slot.UNDEFINED, 0, ContainerInput.PICKUP);
+                StorageHelper.tryStowCursorStack(mod);
             } else {
                 // Close the screen
                 StorageHelper.closeScreen();
             }
+            return null;
+        }
+
+        if (!isBigCraftingOpen && !StorageHelper.isPlayerInventoryScreenOpen()) {
+            StorageHelper.openPlayerInventoryScreen();
+            return null;
         }
 
         // Determine the output slot based on whether the big crafting UI is open
@@ -94,31 +83,24 @@ public class CraftGenericWithRecipeBooksTask extends Task implements ITaskUsesCr
 
         // Check if the output item matches the target item and the target count has not been reached
         if (target.getOutputItem() == output.getItem() && mod.getItemStorage().getItemCount(target.getOutputItem()) < target.getTargetCount()) {
+            noOutputTicks = 0;
             // Return a task to receive the crafting output slot
             return new ReceiveCraftingOutputSlotTask(outputSlot, target.getTargetCount());
         }
 
         // Check if the cursor stack is not empty
         if (!cursorStack.isEmpty()) {
-            // Find a slot in the player's inventory to move the item to
-            moveTo = mod.getItemStorage().getSlotThatCanFitInPlayerInventory(cursorStack, false);
-            if (moveTo.isPresent()) {
-                // Click the slot to move the item to the player's inventory
-                mod.getSlotHandler().clickSlot(moveTo.get(), 0, ContainerInput.PICKUP);
-                return null;
-            }
-            // Check if the item can be thrown away
-            if (ItemHelper.canThrowAwayStack(mod, cursorStack)) {
-                // Click an undefined slot to throw away the item
-                mod.getSlotHandler().clickSlot(Slot.UNDEFINED, 0, ContainerInput.PICKUP);
-                return null;
-            }
-            // Find the garbage slot and click it to move the item there
-            garbage = StorageHelper.getGarbageSlot(mod);
-            garbage.ifPresent(slot -> mod.getSlotHandler().clickSlot(slot, 0, ContainerInput.PICKUP));
-            // Click an undefined slot to clear the cursor stack
-            mod.getSlotHandler().clickSlot(Slot.UNDEFINED, 0, ContainerInput.PICKUP);
+            StorageHelper.tryStowCursorStack(mod);
             return null;
+        }
+
+        if (shouldUseManualFallback(++noOutputTicks)) {
+            manualFallback = true;
+            mod.getCraftingRecipeTracker().setDirty();
+            mod.getStabilityDiagnostics().setRecentFailure("recipe-book placement stalled for "
+                    + target.getOutputItem().getDescriptionId() + "; using manual crafting");
+            setDebugState("Recipe book stalled; using manual crafting");
+            return new CraftGenericManuallyTask(target);
         }
 
         // Check if neither the big crafting UI nor the player inventory UI is open
@@ -145,6 +127,10 @@ public class CraftGenericWithRecipeBooksTask extends Task implements ITaskUsesCr
         }
 
         return null;
+    }
+
+    static boolean shouldUseManualFallback(int noOutputTicks) {
+        return noOutputTicks >= MANUAL_FALLBACK_TICKS;
     }
 
     /**

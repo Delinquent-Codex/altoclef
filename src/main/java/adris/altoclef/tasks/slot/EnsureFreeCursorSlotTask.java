@@ -2,11 +2,7 @@ package adris.altoclef.tasks.slot;
 
 import adris.altoclef.AltoClef;
 import adris.altoclef.tasksystem.Task;
-import adris.altoclef.util.helpers.ItemHelper;
 import adris.altoclef.util.helpers.StorageHelper;
-import adris.altoclef.util.slots.Slot;
-import java.util.Optional;
-import net.minecraft.world.inventory.ContainerInput;
 import net.minecraft.world.item.ItemStack;
 
 public class EnsureFreeCursorSlotTask extends Task {
@@ -23,25 +19,8 @@ public class EnsureFreeCursorSlotTask extends Task {
         ItemStack cursor = StorageHelper.getItemStackInCursorSlot();
 
         if (!cursor.isEmpty()) {
-            Optional<Slot> moveTo = mod.getItemStorage().getSlotThatCanFitInPlayerInventory(cursor, false);
-            if (moveTo.isPresent()) {
-                setDebugState("Moving cursor stack back");
-                mod.getSlotHandler().clickSlot(moveTo.get(), 0, ContainerInput.PICKUP);
-                return null;
-            }
-            if (ItemHelper.canThrowAwayStack(mod, cursor)) {
-                setDebugState("Incompatible cursor stack, throwing");
-                mod.getSlotHandler().clickSlot(Slot.UNDEFINED, 0, ContainerInput.PICKUP);
-            } else {
-                Optional<Slot> garbage = StorageHelper.getGarbageSlot(mod);
-                if (garbage.isPresent()) {
-                    // Pick up garbage so we throw it out next frame
-                    setDebugState("Picking up garbage");
-                    mod.getSlotHandler().clickSlot(garbage.get(), 0, ContainerInput.PICKUP);
-                } else {
-                    mod.getSlotHandler().clickSlot(Slot.UNDEFINED, 0, ContainerInput.PICKUP);
-                }
-            }
+            setDebugState("Safely stowing cursor stack");
+            StorageHelper.tryStowCursorStack(mod, false);
             return null;
         }
         return null;

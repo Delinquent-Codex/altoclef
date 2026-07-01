@@ -390,14 +390,14 @@ public class ItemHelper {
             return false;
         if (isStackProtected(mod, stack))
             return false;
-        return mod.getModSettings().isThrowaway(stack.getItem()) || mod.getModSettings().shouldThrowawayUnusedItems();
+        return mod.getInventoryPolicy().canDiscard(stack);
     }
 
     @SuppressWarnings("BooleanMethodIsAlwaysInverted")
     public static boolean canStackTogether(ItemStack from, ItemStack to) {
         if (to.isEmpty() && from.getCount() <= from.getMaxStackSize())
             return true;
-        return to.getItem().equals(from.getItem()) && (from.getCount() + to.getCount() < to.getMaxStackSize());
+        return to.getItem().equals(from.getItem()) && (from.getCount() + to.getCount() <= to.getMaxStackSize());
     }
 
     private static Map<Item, Integer> getFuelTimeMap() {

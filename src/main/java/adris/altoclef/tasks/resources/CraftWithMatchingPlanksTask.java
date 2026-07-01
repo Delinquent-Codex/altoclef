@@ -1,7 +1,6 @@
 package adris.altoclef.tasks.resources;
 
 import adris.altoclef.AltoClef;
-import adris.altoclef.Debug;
 import adris.altoclef.TaskCatalogue;
 import adris.altoclef.tasks.ResourceTask;
 import adris.altoclef.tasksystem.Task;
@@ -30,16 +29,8 @@ public class CraftWithMatchingPlanksTask extends CraftWithMatchingMaterialsTask 
     }
 
     @Override
-    protected Task getSpecificSameResourceTask(AltoClef mod, Item[] toGet) {
-        for (Item plankToGet : toGet) {
-            Item log = ItemHelper.planksToLog(plankToGet);
-            // Convert logs to planks
-            if (mod.getItemStorage().getItemCount(log) >= 1) {
-                return TaskCatalogue.getItemTask(plankToGet, 1);//new CraftInInventoryTask(new ItemTarget(plankToGet, 1), CraftingRecipe.newShapedRecipe("planks", new ItemTarget[]{new ItemTarget(log, 1), empty, empty, empty}, 4), false, true);
-            }
-        }
-        Debug.logError("CraftWithMatchingPlanks: Should never happen!");
-        return null;
+    protected Task getSpecificSameResourceTask(AltoClef mod, Item toGet, int count) {
+        return TaskCatalogue.getItemTask(toGet, count);
     }
 
     @Override

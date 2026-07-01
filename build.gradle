@@ -53,6 +53,10 @@ dependencies {
     include implementation("com.fasterxml.jackson.core:jackson-databind:${jackson_version}")
     include implementation("dev.babbaj:nether-pathfinder:${nether_pathfinder_version}")
     compileOnly "com.google.code.findbugs:jsr305:3.0.2"
+
+    testImplementation platform("org.junit:junit-bom:5.12.2")
+    testImplementation "org.junit.jupiter:junit-jupiter"
+    testRuntimeOnly "org.junit.platform:junit-platform-launcher"
 }
 
 sourceSets {
@@ -72,6 +76,10 @@ sourceSets {
 tasks.withType(JavaCompile).configureEach {
     options.encoding = "UTF-8"
     options.release = java_version.toInteger()
+}
+
+tasks.named("test", Test) {
+    useJUnitPlatform()
 }
 
 tasks.named("javadoc", Javadoc) {

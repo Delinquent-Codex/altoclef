@@ -11,10 +11,10 @@ import adris.altoclef.util.helpers.StorageHelper;
 import adris.altoclef.util.slots.CraftingTableSlot;
 import adris.altoclef.util.slots.PlayerSlot;
 import adris.altoclef.util.slots.Slot;
+import adris.altoclef.stability.CraftingBatchPlanner;
 import java.util.Optional;
 import net.minecraft.world.inventory.ContainerInput;
 import net.minecraft.world.item.ItemStack;
-import net.minecraft.world.item.Items;
 
 /**
  * Assuming a crafting screen is open, crafts a recipe.
@@ -45,26 +45,24 @@ public class CraftGenericManuallyTask extends Task {
             // otherwise crafting won't work
             ItemStack cursorStack = StorageHelper.getItemStackInCursorSlot();
             if (!cursorStack.isEmpty()) {
-                Optional<Slot> moveTo = mod.getItemStorage().getSlotThatCanFitInPlayerInventory(cursorStack, false);
-                if (moveTo.isPresent()) {
-                    mod.getSlotHandler().clickSlot(moveTo.get(), 0, ContainerInput.PICKUP);
-                    return null;
-                }
-                if (ItemHelper.canThrowAwayStack(mod, cursorStack)) {
-                    mod.getSlotHandler().clickSlot(Slot.UNDEFINED, 0, ContainerInput.PICKUP);
-                    return null;
-                }
-                Optional<Slot> garbage = StorageHelper.getGarbageSlot(mod);
-                // Try throwing away cursor slot if it's garbage
-                if (garbage.isPresent()) {
-                    mod.getSlotHandler().clickSlot(garbage.get(), 0, ContainerInput.PICKUP);
-                    return null;
-                }
-                mod.getSlotHandler().clickSlot(Slot.UNDEFINED, 0, ContainerInput.PICKUP);
+                StorageHelper.tryStowCursorStack(mod);
             } else {
                 StorageHelper.closeScreen();
             }
-            // Just to be safe
+            return null;
+        }
+
+        if (!bigCrafting && !StorageHelper.isPlayerInventoryScreenOpen()) {
+            StorageHelper.openPlayerInventoryScreen();
+            return null;
+        }
+
+        ItemStack cursor = StorageHelper.getItemStackInCursorSlot();
+        boolean childActive = getSubTask() != null && getSubTask().isActive();
+        if (shouldStowInheritedCursor(!cursor.isEmpty(), childActive)) {
+            setDebugState("Stowing inherited cursor stack");
+            StorageHelper.tryStowCursorStack(mod, false);
+            return null;
         }
 
         Slot outputSlot = bigCrafting ? CraftingTableSlot.OUTPUT_SLOT : PlayerSlot.CRAFT_OUTPUT_SLOT;
@@ -73,7 +71,8 @@ public class CraftGenericManuallyTask extends Task {
         // We need 9 sticks
         // plank recipe results in 4 sticks
         // this means 3 planks per slot
-        int requiredPerSlot = (int) Math.ceil((double) target.getTargetCount() / target.getRecipe().outputCount());
+        int requiredPerSlot = CraftingBatchPlanner.requiredPerIngredientSlot(target.getTargetCount(),
+                mod.getItemStorage().getItemCount(target.getOutputItem()), target.getRecipe().outputCount());
 
         // For each slot in table
         for (int craftSlot = 0; craftSlot < target.getRecipe().getSlotCount(); ++craftSlot) {
@@ -87,19 +86,19 @@ public class CraftGenericManuallyTask extends Task {
                 currentCraftSlot = PlayerSlot.getCraftInputSlot(craftSlot);
             }
             ItemStack present = StorageHelper.getItemStackInSlot(currentCraftSlot);
-            if (toFill == null || toFill.isEmpty()) {
-                if (present.getItem() != Items.AIR) {
-                    // Move this item OUT if it should be empty
-                    setDebugState("Found INVALID slot");
-                    mod.getSlotHandler().clickSlot(currentCraftSlot, 0, ContainerInput.PICKUP);
-                }
-            } else {
+            if (shouldClearCraftSlot(toFill, present)) {
+                setDebugState("Clearing stale crafting slot");
+                mod.getCraftingRecipeTracker().setDirty();
+                mod.getSlotHandler().clickSlot(currentCraftSlot, 0, ContainerInput.PICKUP);
+                return null;
+            }
+            if (toFill != null && !toFill.isEmpty()) {
                 boolean correctItem = toFill.matches(present.getItem());
                 boolean isSatisfied = correctItem && present.getCount() >= requiredPerSlot;
                 if (!isSatisfied) {
                     // We have items that satisfy, but we CAN NOT fill in the current slot!
                     // In that case, just grab from the output.
-                    if (!mod.getItemStorage().hasItemInventoryOnly(present.getItem())) {
+                    if (!mod.getItemStorage().hasItemInventoryOnly(toFill.getMatches())) {
                         if (!StorageHelper.getItemStackInSlot(outputSlot).isEmpty()) {
                             setDebugState("NO MORE to fit: grabbing from output.");
                             return new ReceiveCraftingOutputSlotTask(outputSlot, target.getTargetCount());
@@ -122,14 +121,13 @@ public class CraftGenericManuallyTask extends Task {
         }
 
         // Ensure our cursor is empty/can receive our item
-        ItemStack cursor = StorageHelper.getItemStackInCursorSlot();
+        cursor = StorageHelper.getItemStackInCursorSlot();
         if (!ItemHelper.canStackTogether(StorageHelper.getItemStackInSlot(outputSlot), cursor)) {
             Optional<Slot> toFit = mod.getItemStorage().getSlotThatCanFitInPlayerInventory(cursor, false).or(() -> StorageHelper.getGarbageSlot(mod));
             if (toFit.isPresent()) {
                 mod.getSlotHandler().clickSlot(toFit.get(), 0, ContainerInput.PICKUP);
             } else {
-                // Eh screw it
-                mod.getSlotHandler().clickSlot(Slot.UNDEFINED, 0, ContainerInput.PICKUP);
+                StorageHelper.tryStowCursorStack(mod);
             }
         }
 
@@ -157,5 +155,19 @@ public class CraftGenericManuallyTask extends Task {
     @Override
     protected String toDebugString() {
         return "Crafting: " + target;
+    }
+
+    static boolean shouldClearCraftSlot(ItemTarget expected, ItemStack present) {
+        boolean expectedEmpty = expected == null || expected.isEmpty();
+        boolean presentMatches = !expectedEmpty && expected.matches(present.getItem());
+        return shouldClearCraftSlot(expectedEmpty, present.isEmpty(), presentMatches);
+    }
+
+    static boolean shouldClearCraftSlot(boolean expectedEmpty, boolean presentEmpty, boolean presentMatches) {
+        return !presentEmpty && (expectedEmpty || !presentMatches);
+    }
+
+    static boolean shouldStowInheritedCursor(boolean cursorOccupied, boolean childActive) {
+        return cursorOccupied && !childActive;
     }
 }

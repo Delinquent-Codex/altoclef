@@ -37,6 +37,8 @@ public class SlotHandler {
 
     private final TimerGame slotActionTimer = new TimerGame(0);
     private boolean overrideTimerOnce = false;
+    private Slot cursorSource;
+    private int cursorSourceContainerId = -1;
 
     public SlotHandler(AltoClef mod) {
         this.mod = mod;
@@ -64,6 +66,23 @@ public class SlotHandler {
     public void clickSlot(Slot slot, int mouseButton, ContainerInput type) {
         if (!canDoSlotAction()) return;
 
+        LocalPlayer player = Minecraft.getInstance().player;
+        int containerId = player == null ? -1 : player.containerMenu.containerId;
+        ItemStack cursorBefore = StorageHelper.getItemStackInCursorSlot().copy();
+        ItemStack stackBeforeClick = type == ContainerInput.THROW
+                ? StorageHelper.getItemStackInSlot(slot)
+                : cursorBefore;
+        boolean outsideDrop = slot.getWindowSlot() == Slot.UNDEFINED.getWindowSlot()
+                && type == ContainerInput.PICKUP && !stackBeforeClick.isEmpty();
+        if (outsideDrop && !mod.getInventoryPolicy().canDiscard(stackBeforeClick)) {
+            mod.getStabilityDiagnostics().setRecentFailure("prevented discard of reserved "
+                    + stackBeforeClick.getItem().getDescriptionId() + " from " + discardCaller());
+            return;
+        }
+        if ((outsideDrop || type == ContainerInput.THROW) && !stackBeforeClick.isEmpty() && mod.getPlayer() != null) {
+            mod.getInventoryPolicy().recordDeliberateDrop(stackBeforeClick.copy(), mod.getPlayer().position());
+        }
+
         if (slot.getWindowSlot() == -1) {
             clickSlot(PlayerSlot.UNDEFINED, 0, ContainerInput.PICKUP);
             return;
@@ -72,6 +91,71 @@ public class SlotHandler {
         //if (getItemStackInSlot(slot).isEmpty()) return getItemStackInSlot(slot);
 
         clickWindowSlot(slot.getWindowSlot(), mouseButton, type);
+        if (type == ContainerInput.PICKUP) {
+            updateCursorSource(slot, containerId, cursorBefore, StorageHelper.getItemStackInCursorSlot());
+        }
+    }
+
+    public boolean tryReturnCursorToSource() {
+        ItemStack cursor = StorageHelper.getItemStackInCursorSlot();
+        if (cursor.isEmpty()) {
+            clearCursorSource();
+            return true;
+        }
+        LocalPlayer player = Minecraft.getInstance().player;
+        if (player == null || cursorSource == null || player.containerMenu.containerId != cursorSourceContainerId) {
+            clearCursorSource();
+            return false;
+        }
+        int windowSlot = cursorSource.getWindowSlot();
+        if (windowSlot < 0 || windowSlot >= player.containerMenu.slots.size()) {
+            clearCursorSource();
+            return false;
+        }
+        net.minecraft.world.inventory.Slot target = player.containerMenu.getSlot(windowSlot);
+        ItemStack targetStack = target.getItem();
+        boolean canFit = target.mayPlace(cursor) && (targetStack.isEmpty()
+                || ItemHelper.canStackTogether(cursor, targetStack));
+        if (!canFit) {
+            clearCursorSource();
+            return false;
+        }
+        clickSlot(cursorSource, 0, ContainerInput.PICKUP);
+        return StorageHelper.getItemStackInCursorSlot().isEmpty();
+    }
+
+    public boolean hasTrackedCursorSource() {
+        LocalPlayer player = Minecraft.getInstance().player;
+        return player != null && cursorSource != null
+                && player.containerMenu.containerId == cursorSourceContainerId;
+    }
+
+    public void clearCursorSource() {
+        cursorSource = null;
+        cursorSourceContainerId = -1;
+    }
+
+    private void updateCursorSource(Slot clicked, int containerId, ItemStack before, ItemStack after) {
+        if (after.isEmpty()) {
+            clearCursorSource();
+            return;
+        }
+        if (clicked.getWindowSlot() == Slot.UNDEFINED.getWindowSlot()) {
+            return;
+        }
+        if (before.isEmpty() || before.getItem() != after.getItem() || before.getCount() != after.getCount()) {
+            cursorSource = clicked;
+            cursorSourceContainerId = containerId;
+        }
+    }
+
+    private static String discardCaller() {
+        return StackWalker.getInstance().walk(frames -> frames
+                .filter(frame -> frame.getClassName().startsWith("adris.altoclef")
+                        && !frame.getClassName().equals(SlotHandler.class.getName()))
+                .map(frame -> frame.getClassName().substring(frame.getClassName().lastIndexOf('.') + 1)
+                        + "." + frame.getMethodName())
+                .findFirst().orElse("unknown"));
     }
 
     private void clickSlotForce(Slot slot, int mouseButton, ContainerInput type) {

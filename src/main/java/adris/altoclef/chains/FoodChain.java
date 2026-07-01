@@ -7,6 +7,7 @@ import adris.altoclef.multiversion.item.ItemVer;
 import adris.altoclef.tasks.resources.CollectFoodTask;
 import adris.altoclef.tasks.speedrun.DragonBreathTracker;
 import adris.altoclef.tasksystem.TaskRunner;
+import adris.altoclef.stability.SurvivalController;
 import adris.altoclef.util.helpers.*;
 import adris.altoclef.util.slots.PlayerSlot;
 import baritone.api.utils.input.Input;
@@ -90,6 +91,13 @@ public class FoodChain extends SingleTaskChain {
     @Override
     public float getPriority() {
         AltoClef mod = AltoClef.getInstance();
+        SurvivalController.State survival = mod.getSurvivalController().getState();
+
+        if (survival.isWorldEmergency() || survival == SurvivalController.State.DANGEROUS_FALL
+                || survival == SurvivalController.State.HOSTILE_RETREAT) {
+            stopEat();
+            return Float.NEGATIVE_INFINITY;
+        }
 
         if (WorldHelper.isInNetherPortal()) {
             stopEat();
@@ -267,9 +275,6 @@ public class FoodChain extends SingleTaskChain {
         // Get best food item + calculate food total
         for (ItemStack stack : mod.getItemStorage().getItemStacksPlayerInventory(true)) {
             if (ItemVer.isFood(stack)) {
-                // Ignore protected items
-                if (!ItemHelper.canThrowAwayStack(mod, stack)) continue;
-
                 // Ignore spider eyes
                 if (stack.getItem() == Items.SPIDER_EYE) {
                     continue;
@@ -312,7 +317,9 @@ public class FoodChain extends SingleTaskChain {
 
     // If we need to eat like, NOW.
     public boolean needsToEatCritical() {
-        return false;
+        LocalPlayer player = Minecraft.getInstance().player;
+        return player != null && hasFood()
+                && (player.getFoodData().getFoodLevel() <= 6 || player.getHealth() <= 8);
     }
 
     public boolean hasFood() {

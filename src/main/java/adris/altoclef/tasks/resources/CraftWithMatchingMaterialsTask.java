@@ -10,6 +10,8 @@ import adris.altoclef.tasksystem.Task;
 import adris.altoclef.util.CraftingRecipe;
 import adris.altoclef.util.ItemTarget;
 import adris.altoclef.util.RecipeTarget;
+import adris.altoclef.stability.MatchingMaterialPlanner;
+import java.util.Arrays;
 import net.minecraft.world.item.Item;
 
 public abstract class CraftWithMatchingMaterialsTask extends ResourceTask {
@@ -19,7 +21,6 @@ public abstract class CraftWithMatchingMaterialsTask extends ResourceTask {
     private final boolean[] sameMask;
 
     private final ItemTarget sameResourceTarget;
-    private final int sameResourceRequiredCount;
     private final int sameResourcePerRecipe;
 
     public CraftWithMatchingMaterialsTask(ItemTarget target, CraftingRecipe recipe, boolean[] sameMask) {
@@ -40,10 +41,7 @@ public abstract class CraftWithMatchingMaterialsTask extends ResourceTask {
         }
         this.sameResourceTarget = sameResourceTarget;
 
-        // cant this be just replaced with `Math.ceil((double) target.getTargetCount() / recipe.outputCount())` ?
-        int craftsNeeded = (int) (1 + Math.floor((double) target.getTargetCount() / recipe.outputCount() - 0.001));
         sameResourcePerRecipe = sameResourceRequiredCount;
-        this.sameResourceRequiredCount = sameResourceRequiredCount * craftsNeeded;
     }
 
     private static CraftingRecipe generateSameRecipe(CraftingRecipe diverseRecipe, Item sameItem, boolean[] sameMask) {
@@ -66,62 +64,32 @@ public abstract class CraftWithMatchingMaterialsTask extends ResourceTask {
     @Override
     protected Task onResourceTick(AltoClef mod) {
 
-        /*
-         * 0) Figure out the "same resource" item target
-         * 1) Get the "same resource" item matches array
-         * 2) Figure out how many of the "same resource" we need
-         * 3) Get the most frequent occurrence of said material
-         * 4) If the most frequent occurrence is NOT met, return TaskCatalogue.getItemTask("same resource" item target)
-         * 5) If the most frequent occurrence IS met, run CraftInTable with a custom recipe that only has the frequent material.`
-         */
-
-        // For each "same" item: How many items can we craft with it?
-        // For instance, if we have 7 red wool, we can craft 2 beds
-        // sameFullCraftsPermitted[Items.RED_WOOL] = 2;
-        int canCraftTotal = 0;
-        int majorityCraftCount = 0;
-        Item majorityCraftItem = null;
-        for (Item sameCheck : sameResourceTarget.getMatches()) {
-            int count = getExpectedTotalCountOfSameItem(mod, sameCheck);
-            int canCraft = (count / sameResourcePerRecipe) * recipe.outputCount();
-            canCraftTotal += canCraft;
-            if (canCraft > majorityCraftCount) {
-                majorityCraftCount = canCraft;
-                majorityCraftItem = sameCheck;
-            }
-        }
-
-        // If we already have some of our target, we need less "same" materials.
         int currentTargetCount = mod.getItemStorage().getItemCount(target);
-        int currentTargetsRequired = target.getTargetCount() - currentTargetCount;
+        int remainingOutputs = Math.max(0, target.getTargetCount() - currentTargetCount);
+        MatchingMaterialPlanner.Selection<Item> selection = MatchingMaterialPlanner.select(
+                        Arrays.asList(sameResourceTarget.getMatches()),
+                        item -> getExpectedTotalCountOfSameItem(mod, item),
+                        item -> mod.getItemStorage().getItemCount(item),
+                        remainingOutputs, sameResourcePerRecipe, recipe.outputCount())
+                .orElse(null);
+        if (selection == null) return null;
 
-        if (canCraftTotal >= currentTargetsRequired) {
-            // We have enough of the same resource!!!
-            // Handle crafting normally.
-
-            // We may need to convert our raw materials into our "matching" materials.
-            int trueCanCraftTotal = 0;
-            for (Item sameCheck : sameResourceTarget.getMatches()) {
-                int trueCount = mod.getItemStorage().getItemCount(sameCheck);
-                int trueCanCraft = (trueCount / sameResourcePerRecipe) * recipe.outputCount();
-                trueCanCraftTotal += trueCanCraft;
-            }
-            if (trueCanCraftTotal < currentTargetsRequired) {
-                return getSpecificSameResourceTask(mod, sameResourceTarget.getMatches());
-            }
-
-            CraftingRecipe sameRecipe = generateSameRecipe(recipe, majorityCraftItem, sameMask);
-            int toCraftTotal = majorityCraftCount;
-            toCraftTotal = Math.min(toCraftTotal, target.getTargetCount());
-            Item output = getSpecificItemCorrespondingToMajorityResource(majorityCraftItem);
-
-            toCraftTotal = Math.min(target.getTargetCount(),toCraftTotal+mod.getItemStorage().getItemCount(output));
-
-            RecipeTarget recipeTarget = new RecipeTarget(output, toCraftTotal, sameRecipe);
-            return recipe.isBig() ? new CraftInTableTask(recipeTarget) : new CraftInInventoryTask(recipeTarget);
+        mod.getInventoryPolicy().reserveCraftingIntermediate(selection.material(), selection.materialRequired());
+        if (!selection.canCommit()) {
+            return getSpecificSameResourceTask(mod, selection.material(), selection.materialRequired());
         }
-        // Collect SAME resources first!!!
-        return getAllSameResourcesTask(mod);
+
+        Item output = getSpecificItemCorrespondingToMajorityResource(selection.material());
+        if (output == null) {
+            mod.getStabilityDiagnostics().setRecentFailure("no output mapping for matching material "
+                    + selection.material().getDescriptionId());
+            return null;
+        }
+        CraftingRecipe sameRecipe = generateSameRecipe(recipe, selection.material(), sameMask);
+        int toCraftTotal = mod.getItemStorage().getItemCount(output)
+                + selection.craftsRequired() * recipe.outputCount();
+        RecipeTarget recipeTarget = new RecipeTarget(output, toCraftTotal, sameRecipe);
+        return recipe.isBig() ? new CraftInTableTask(recipeTarget) : new CraftInInventoryTask(recipeTarget);
     }
 
     @Override
@@ -130,21 +98,13 @@ public abstract class CraftWithMatchingMaterialsTask extends ResourceTask {
     }
 
 
-    protected Task getAllSameResourcesTask(AltoClef mod) {
-        ItemTarget infinityVersion = new ItemTarget(sameResourceTarget, 999999);
-        return TaskCatalogue.getItemTask(infinityVersion);
-    }
-
     // Virtual
     protected int getExpectedTotalCountOfSameItem(AltoClef mod, Item sameItem) {
         return mod.getItemStorage().getItemCount(sameItem);
     }
 
-    // Virtual
-    // this should be implemented, if 'getExpectedTotalCountOfSameItem' is overwritten
-    protected Task getSpecificSameResourceTask(AltoClef mod, Item[] toGet) {
-        Debug.logError("Uh oh!!! getSpecificSameResourceTask should be implemented!!!! Now we're stuck.");
-        return null;
+    protected Task getSpecificSameResourceTask(AltoClef mod, Item toGet, int count) {
+        return TaskCatalogue.getItemTask(toGet, count);
     }
 
     protected abstract Item getSpecificItemCorrespondingToMajorityResource(Item majority);

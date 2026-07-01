@@ -39,7 +39,7 @@ Use Java 25. The Gradle build also declares a Java 25 toolchain.
 The distributable jar is written to:
 
 ```text
-build/libs/altoclef-0.19.0-port.1+mc26.2.jar
+build/libs/altoclef-0.19.0-port.2+mc26.2.jar
 ```
 
 The build runs `verifyJarContents`, which checks that the final jar contains Fabric metadata, AltoClef and Baritone mixin configs, the AltoClef entrypoint, required bundled libraries, and no bundled Minecraft or Fabric Loader/API classes.
